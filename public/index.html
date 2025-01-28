@@ -1,38 +1,106 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Ensure mobile responsiveness -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Solana Token Mint Indexer</title>
+
+    <!-- Materialize CSS (via CDN) -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+    />
+
+    <!-- Custom Styles -->
     <style>
       body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
+        background-color: #f7f9fa; /* Soft background */
       }
-      .highlight {
-        color: #0A7F0A;
-        font-weight: bold;
+      .brand-header {
+        background-color: #80cbc4; /* Teal lighten-3 */
+        padding: 20px;
+      }
+      .brand-header h1 {
+        margin: 0;
+        color: #004d40; /* Teal dark color for contrast */
+        font-size: 2rem;
+      }
+      .mint-item {
+        font-weight: 500;
+        color: #00695c; /* Teal darken-3 */
+      }
+      .mint-item small {
+        color: #78909c; /* Blue-grey lighten for subtle text */
       }
     </style>
   </head>
-  <body>
-    <h1>Solana Token Mint Indexer (Direct Instruction Decode)</h1>
-    <p>This page displays newly created SPL token mint addresses.</p>
 
-    <button id="refreshBtn">Refresh Now</button>
-    <ul id="mintList"></ul>
+  <body>
+    <!-- HEADER / NAV -->
+    <div class="brand-header">
+      <div class="container">
+        <h1 class="center-align">Solana Token Mint Indexer</h1>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="container">
+      <div class="section">
+        <div class="row">
+          <div class="col s12">
+            <div class="card teal lighten-5">
+              <div class="card-content">
+                <span class="card-title teal-text text-darken-4"
+                  >Newly Created SPL Token Mints</span
+                >
+                <p>
+                  This list updates automatically every 5 seconds, showing
+                  newly discovered mint addresses from the indexer.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- List of minted addresses -->
+        <ul class="collection" id="mintList"></ul>
+      </div>
+    </div>
+
+    <!-- Materialize JS (for optional UI interactions, not strictly required) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
     <script>
-      const refreshBtn = document.getElementById('refreshBtn');
+      // DOM Element
       const mintList = document.getElementById('mintList');
 
+      // Fetch newly minted addresses from the server
       async function fetchMints() {
         try {
-          const res = await fetch('/api/mints');
-          const data = await res.json();
+          const response = await fetch('/api/mints');
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+          const data = await response.json();
+          // data should be an array of mint addresses
+
+          // Clear the current list
           mintList.innerHTML = '';
-          data.forEach(mintAddr => {
+
+          data.forEach((mintAddr, index) => {
+            // Create a collection item
             const li = document.createElement('li');
-            li.innerHTML = `Mint: <span class="highlight">${mintAddr}</span>`;
+            li.className = 'collection-item';
+
+            // Format the list item with Materialize styling
+            li.innerHTML = `
+              <span class="mint-item">
+                <strong>Mint #${index + 1}:</strong> ${mintAddr}
+              </span>
+              <br/>
+              <small>Discovered by the indexer</small>
+            `;
             mintList.appendChild(li);
           });
         } catch (err) {
@@ -40,9 +108,11 @@
         }
       }
 
-      refreshBtn.addEventListener('click', fetchMints);
-      setInterval(fetchMints, 10000); // auto-refresh every 10 seconds
-      fetchMints(); // initial load
+      // Automatically refresh the list every 5 seconds
+      setInterval(fetchMints, 5000);
+
+      // Initial fetch on page load
+      fetchMints();
     </script>
   </body>
 </html>
