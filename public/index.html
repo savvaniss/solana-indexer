@@ -1,3 +1,5 @@
+<!-- index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -94,6 +96,9 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             border-left: 4px solid var(--primary);
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* Space between elements */
         }
 
         .token-card:hover, .wallet-token-card:hover {
@@ -101,26 +106,18 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        .mint-address, .token-mint-address {
-            font-family: 'Roboto Mono', monospace;
+        .timestamp, .mint-address, .tx-signature, .total-supply, .owner {
             font-size: 0.9em;
+            color: var(--on-surface);
+        }
+
+        .tx-signature a {
             color: var(--primary);
-            word-break: break-all;
-            margin: 12px 0;
+            text-decoration: none;
         }
 
-        .timestamp {
-            font-size: 0.85em;
-            color: #757575;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .tx-signature {
-            font-size: 0.8em;
-            color: #9E9E9E;
-            word-break: break-all;
+        .tx-signature a:hover {
+            text-decoration: underline;
         }
 
         .wallet-tokens-section {
@@ -194,6 +191,7 @@
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
                     <option value="alphabetical">Alphabetical</option>
+                    <option value="supply">Total Supply</option>
                 </select>
             </div>
             <!-- Connect Wallet Button and Wallet Address -->
@@ -228,44 +226,13 @@
     </div>
 
     <script>
-        // Existing JavaScript Code for Token Monitoring
+        // JavaScript Code for Enhanced Token Tracker
+
         let currentSort = 'newest';
 
-        function updateTokenList(tokens) {
-            const container = document.getElementById('tokenList');
-            const sortedTokens = sortTokens([...tokens]);
-            
-            container.innerHTML = sortedTokens.map(token => `
-                <div class="token-card">
-                    <div class="timestamp">
-                        <span class="material-icons">schedule</span>
-                        ${token.timestamp}
-                    </div>
-                    <div class="mint-address">${token.mintAddress}</div>
-                    <div class="tx-signature">TX: ${token.signature.slice(0, 20)}...</div>
-                </div>
-            `).join('');
-        }
-
-        function sortTokens(tokens) {
-            switch(currentSort) {
-                case 'oldest':
-                    return tokens.sort((a, b) => 
-                        new Date(a.timestamp) - new Date(b.timestamp));
-                case 'alphabetical':
-                    return tokens.sort((a, b) => 
-                        a.mintAddress.localeCompare(b.mintAddress));
-                default: // newest
-                    return tokens.sort((a, b) => 
-                        new Date(b.timestamp) - new Date(a.timestamp));
-            }
-        }
-
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            currentSort = e.target.value;
-            fetchTokens();
-        });
-
+        /**
+         * Fetch tokens from the backend and update the token list
+         */
         async function fetchTokens() {
             try {
                 const response = await fetch('/tokens');
@@ -276,39 +243,107 @@
             }
         }
 
-        // Refresh every 2 seconds
+        /**
+         * Update the token list in the DOM with additional information
+         * @param {Array} tokens - Array of token objects
+         */
+        function updateTokenList(tokens) {
+            const container = document.getElementById('tokenList');
+            const sortedTokens = sortTokens([...tokens]);
+            
+            container.innerHTML = sortedTokens.map(token => `
+                <div class="token-card">
+                    <div class="timestamp">
+                        <span class="material-icons">schedule</span>
+                        ${token.timestamp}
+                    </div>
+                    <div class="mint-address">Mint: ${token.mintAddress}</div>
+                    <div class="tx-signature">
+                        TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
+                    </div>
+                    <div class="total-supply">Total Supply: ${token.totalSupply}</div>
+                    <div class="owner">Owner: ${token.owner}</div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Sort tokens based on the selected criteria
+         * @param {Array} tokens - Array of token objects
+         * @returns {Array} - Sorted array of token objects
+         */
+        function sortTokens(tokens) {
+            switch(currentSort) {
+                case 'oldest':
+                    return tokens.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp));
+                case 'alphabetical':
+                    return tokens.sort((a, b) => 
+                        a.mintAddress.localeCompare(b.mintAddress));
+                case 'supply':
+                    return tokens.sort((a, b) => 
+                        parseInt(b.totalSupply) - parseInt(a.totalSupply));
+                default: // newest
+                    return tokens.sort((a, b) => 
+                        new Date(b.timestamp) - new Date(a.timestamp));
+            }
+        }
+
+        /**
+         * Handle sort selection changes
+         */
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            currentSort = e.target.value;
+            fetchTokens();
+        });
+
+        /**
+         * Initial fetch every 2 seconds
+         */
         setInterval(fetchTokens, 2000);
         fetchTokens();
 
-        // Phantom Wallet Integration
+        /**
+         * Phantom Wallet Integration
+         */
         const connectButton = document.getElementById('connectButton');
         const walletAddressSpan = document.getElementById('walletAddress');
         const walletTokensSection = document.getElementById('walletTokensSection');
         const walletTokensTableBody = document.querySelector('#walletTokensTable tbody');
         const walletErrorDiv = document.getElementById('walletError');
 
-        // Solana Connection (Devnet/Mainnet)
+        // Solana Connection (Devnet)
         const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
 
-        // Check if Phantom is installed
+        /**
+         * Check if Phantom is installed
+         * @returns {boolean}
+         */
         const isPhantomInstalled = () => {
             const { solana } = window;
             return solana && solana.isPhantom;
         };
 
-        // Display wallet address
+        /**
+         * Display wallet address in the UI
+         * @param {string} address - Public key of the wallet
+         */
         const displayWalletAddress = (address) => {
             walletAddressSpan.textContent = `Connected: ${address.slice(0, 4)}...${address.slice(-4)}`;
             connectButton.textContent = 'Disconnect Wallet';
         };
 
-        // Clear wallet address
+        /**
+         * Clear wallet address from the UI
+         */
         const clearWalletAddress = () => {
             walletAddressSpan.textContent = '';
             connectButton.textContent = 'Connect Wallet';
         };
 
-        // Connect to Phantom Wallet
+        /**
+         * Connect to Phantom Wallet
+         */
         const connectWallet = async () => {
             try {
                 const { solana } = window;
@@ -348,7 +383,9 @@
             }
         };
 
-        // Disconnect Wallet (Optional UI Handling)
+        /**
+         * Disconnect Wallet (Optional UI Handling)
+         */
         const disconnectWallet = () => {
             const { solana } = window;
             if (solana && solana.isConnected) {
@@ -359,7 +396,9 @@
             }
         };
 
-        // Handle Connect/Disconnect Button Click
+        /**
+         * Handle Connect/Disconnect Button Click
+         */
         connectButton.addEventListener('click', async () => {
             if (isPhantomInstalled()) {
                 if (window.solana.isConnected) {
@@ -372,7 +411,9 @@
             }
         });
 
-        // Initial check for wallet connection on page load
+        /**
+         * Initial check for wallet connection on page load
+         */
         window.addEventListener('load', async () => {
             if (isPhantomInstalled()) {
                 const { solana } = window;
@@ -384,7 +425,10 @@
             }
         });
 
-        // Function to Fetch and Display Wallet Tokens
+        /**
+         * Function to Fetch and Display Wallet Tokens
+         * @param {PublicKey} publicKey - Public key of the connected wallet
+         */
         async function fetchWalletTokens(publicKey) {
             walletErrorDiv.textContent = '';
             walletTokensTableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
@@ -413,8 +457,7 @@
                     const amount = accountData.tokenAmount.uiAmount;
                     const decimals = accountData.tokenAmount.decimals;
 
-                    // Optionally, fetch token name from a token list (not implemented here)
-                    // For simplicity, we'll display the mint address
+                    // Fetch token name from token list
                     const tokenName = await fetchTokenName(mintAddress) || 'Unknown Token';
 
                     const row = `
@@ -434,7 +477,11 @@
             }
         }
 
-        // Function to Fetch Token Name from Token List (Optional)
+        /**
+         * Function to Fetch Token Name from Token List (Optional)
+         * @param {string} mintAddress - Mint address of the token
+         * @returns {string|null} - Name of the token or null if not found
+         */
         async function fetchTokenName(mintAddress) {
             try {
                 // Fetch token list from Solana Labs (publicly available)
