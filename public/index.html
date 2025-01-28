@@ -215,7 +215,6 @@
                 <thead>
                     <tr>
                         <th>Token Name</th>
-                        <th>Symbol</th>
                         <th>Mint Address</th>
                         <th>Amount</th>
                     </tr>
@@ -232,6 +231,7 @@
         // JavaScript Code for Enhanced Token Tracker
 
         let currentSort = 'newest';
+        let displayedSignatures = new Set(); // To track displayed tokens
 
         /**
          * Fetch tokens from the backend and update the token list
@@ -250,21 +250,17 @@
          * Update the token list in the DOM with additional information
          * @param {Array} tokens - Array of token objects
          */
-        async function updateTokenList(tokens) {
+        function updateTokenList(tokens) {
             const container = document.getElementById('tokenList');
             const sortedTokens = sortTokens([...tokens]);
 
-            // Clear the container before adding new tokens
-            container.innerHTML = '';
+            sortedTokens.forEach(token => {
+                if (!displayedSignatures.has(token.signature)) {
+                    displayedSignatures.add(token.signature);
 
-            // Iterate through each token and create a card
-            for (const token of sortedTokens) {
-                // Fetch token metadata (name and symbol)
-                const { name, symbol } = await fetchTokenMetadata(token.mintAddress);
-
-                // Create the token card HTML
-                const tokenCard = `
-                    <div class="token-card">
+                    const tokenCard = document.createElement('div');
+                    tokenCard.className = 'token-card';
+                    tokenCard.innerHTML = `
                         <div class="timestamp">
                             <span class="material-icons">schedule</span>
                             ${token.timestamp}
@@ -276,14 +272,10 @@
                         <div class="total-supply">Total Supply: ${token.totalSupply}</div>
                         <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
                         <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
-                        <div class="token-name">Name: ${name || 'Unknown Token'}</div>
-                        <div class="token-symbol">Symbol: ${symbol || 'N/A'}</div>
-                    </div>
-                `;
-
-                // Append the token card to the container
-                container.insertAdjacentHTML('beforeend', tokenCard);
-            }
+                    `;
+                    container.prepend(tokenCard); // Add new tokens to the top
+                }
+            });
         }
 
         /**
@@ -313,6 +305,10 @@
          */
         document.getElementById('sortSelect').addEventListener('change', (e) => {
             currentSort = e.target.value;
+            // Clear current display and reset tracking
+            const container = document.getElementById('tokenList');
+            container.innerHTML = '';
+            displayedSignatures.clear();
             fetchTokens();
         });
 
@@ -450,7 +446,7 @@
          */
         async function fetchWalletTokens(publicKey) {
             walletErrorDiv.textContent = '';
-            walletTokensTableBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+            walletTokensTableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
 
             try {
                 // Fetch all token accounts for the public key
@@ -462,7 +458,7 @@
                 );
 
                 if (tokenAccounts.value.length === 0) {
-                    walletTokensTableBody.innerHTML = '<tr><td colspan="4">No token holdings found.</td></tr>';
+                    walletTokensTableBody.innerHTML = '<tr><td colspan="3">No token holdings found.</td></tr>';
                     return;
                 }
 
@@ -476,13 +472,12 @@
                     const amount = accountData.tokenAmount.uiAmount;
                     const decimals = accountData.tokenAmount.decimals;
 
-                    // Fetch token metadata (name and symbol)
-                    const { name, symbol } = await fetchTokenMetadata(mintAddress);
+                    // Fetch token name and symbol from token list
+                    const tokenDetails = await fetchTokenDetails(mintAddress) || { name: 'Unknown Token', symbol: '---' };
 
                     const row = `
                         <tr>
-                            <td>${name || 'Unknown Token'}</td>
-                            <td>${symbol || 'N/A'}</td>
+                            <td>${tokenDetails.name}</td>
                             <td>${mintAddress}</td>
                             <td>${amount}</td>
                         </tr>
@@ -498,27 +493,21 @@
         }
 
         /**
-         * Function to Fetch Token Metadata (Name and Symbol) from Token List
+         * Function to Fetch Token Details (Name and Symbol) from Token List
          * @param {string} mintAddress - Mint address of the token
-         * @returns {Object} - Object containing name and symbol
+         * @returns {Object|null} - Object containing name and symbol or null if not found
          */
-        async function fetchTokenMetadata(mintAddress) {
+        async function fetchTokenDetails(mintAddress) {
             try {
                 // Fetch token list from Solana Labs (publicly available)
                 const tokenListUrl = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
                 const response = await fetch(tokenListUrl);
                 const data = await response.json();
                 const token = data.tokens.find(t => t.address === mintAddress);
-                return {
-                    name: token ? token.name : null,
-                    symbol: token ? token.symbol : null
-                };
+                return token ? { name: token.name, symbol: token.symbol } : null;
             } catch (error) {
                 console.error('Error fetching token list:', error);
-                return {
-                    name: null,
-                    symbol: null
-                };
+                return null;
             }
         }
 
