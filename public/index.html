@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Solana Token Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -15,7 +15,6 @@
             --on-surface: #424242;
             --divider: #E0E0E0;
         }
-
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
@@ -23,12 +22,10 @@
             background-color: var(--background);
             color: var(--on-surface);
         }
-
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-
         .header {
             background: var(--surface);
             padding: 24px;
@@ -38,20 +35,42 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
         }
-
+        h1 {
+            margin: 0 0 8px 0;
+        }
+        .wallet-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-connect {
+            padding: 10px 16px;
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 1rem;
+        }
+        .wallet-address {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.9em;
+            color: var(--primary);
+        }
         .sort-controls {
             display: flex;
             gap: 16px;
             align-items: center;
         }
-
         .token-list {
             display: grid;
             gap: 16px;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
-
         .token-card {
             background: var(--surface);
             padding: 20px;
@@ -60,12 +79,10 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             border-left: 4px solid var(--primary);
         }
-
         .token-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-
         .mint-address {
             font-family: 'Roboto Mono', monospace;
             font-size: 0.9em;
@@ -73,7 +90,6 @@
             word-break: break-all;
             margin: 12px 0;
         }
-
         .timestamp {
             font-size: 0.85em;
             color: #757575;
@@ -81,13 +97,11 @@
             align-items: center;
             gap: 8px;
         }
-
         .tx-signature {
             font-size: 0.8em;
             color: #9E9E9E;
             word-break: break-all;
         }
-
         select {
             padding: 8px 12px;
             border-radius: 8px;
@@ -96,89 +110,122 @@
             font-family: inherit;
             color: var(--on-surface);
         }
-
         @media (max-width: 600px) {
             .token-list {
                 grid-template-columns: 1fr;
-            }
-            
-            .header {
-                flex-direction: column;
-                gap: 16px;
-                align-items: flex-start;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>🌱 Solana Devnet Token Tracker</h1>
-                <p>Newly created tokens appear here in real-time</p>
-            </div>
-            <div class="sort-controls">
-                <select id="sortSelect">
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="alphabetical">Alphabetical</option>
-                </select>
-            </div>
+<div class="container">
+    <div class="header">
+        <div>
+            <h1>🌱 Solana Devnet Token Tracker</h1>
+            <p>Newly created tokens appear here in real-time</p>
         </div>
-        <div class="token-list" id="tokenList"></div>
+        <!-- Wallet Connect + Sorting Controls -->
+        <div class="wallet-section">
+            <button class="btn-connect" id="connectWalletBtn">Connect Wallet</button>
+            <span id="walletAddress" class="wallet-address" style="display: none;"></span>
+        </div>
+        <div class="sort-controls">
+            <select id="sortSelect">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="alphabetical">Alphabetical</option>
+            </select>
+        </div>
     </div>
 
-    <script>
-        let currentSort = 'newest';
+    <div class="token-list" id="tokenList"></div>
+</div>
 
-        function updateTokenList(tokens) {
-            const container = document.getElementById('tokenList');
-            const sortedTokens = sortTokens([...tokens]);
-            
-            container.innerHTML = sortedTokens.map(token => `
-                <div class="token-card">
-                    <div class="timestamp">
-                        <span class="material-icons">schedule</span>
-                        ${token.timestamp}
-                    </div>
-                    <div class="mint-address">${token.mintAddress}</div>
-                    <div class="tx-signature">TX: ${token.signature.slice(0, 20)}...</div>
+<script>
+    let currentSort = 'newest';
+
+    /**
+     * Phantom Wallet Integration
+     */
+    const connectWalletBtn = document.getElementById('connectWalletBtn');
+    const walletAddressEl = document.getElementById('walletAddress');
+
+    // 1. Check if Phantom (or a compatible wallet) is injected
+    function isPhantomInstalled() {
+      return window.solana && window.solana.isPhantom;
+    }
+
+    // 2. Connect to the wallet on button click
+    connectWalletBtn.addEventListener('click', async () => {
+      if (!isPhantomInstalled()) {
+        alert('Phantom wallet not found! Please install it from https://phantom.app/');
+        return;
+      }
+      try {
+        // Attempt to connect
+        const resp = await window.solana.connect();
+        // If successful, we have a publicKey
+        const pubKey = window.solana.publicKey.toBase58();
+        console.log('Wallet connected:', pubKey);
+        connectWalletBtn.style.display = 'none';
+        walletAddressEl.textContent = pubKey;
+        walletAddressEl.style.display = 'inline';
+      } catch (err) {
+        console.log('User rejected wallet connection:', err);
+      }
+    });
+
+    /**
+     * Token List Logic
+     */
+    function updateTokenList(tokens) {
+        const container = document.getElementById('tokenList');
+        const sortedTokens = sortTokens([...tokens]);
+
+        container.innerHTML = sortedTokens.map(token => `
+            <div class="token-card">
+                <div class="timestamp">
+                    <span class="material-icons">schedule</span>
+                    ${token.timestamp}
                 </div>
-            `).join('');
+                <div class="mint-address">${token.mintAddress}</div>
+                <div class="tx-signature">TX: ${token.signature.slice(0, 20)}...</div>
+            </div>
+        `).join('');
+    }
+
+    function sortTokens(tokens) {
+        switch(currentSort) {
+            case 'oldest':
+                return tokens.sort((a, b) =>
+                    new Date(a.timestamp) - new Date(b.timestamp));
+            case 'alphabetical':
+                return tokens.sort((a, b) =>
+                    a.mintAddress.localeCompare(b.mintAddress));
+            default: // newest
+                return tokens.sort((a, b) =>
+                    new Date(b.timestamp) - new Date(a.timestamp));
         }
+    }
 
-        function sortTokens(tokens) {
-            switch(currentSort) {
-                case 'oldest':
-                    return tokens.sort((a, b) => 
-                        new Date(a.timestamp) - new Date(b.timestamp));
-                case 'alphabetical':
-                    return tokens.sort((a, b) => 
-                        a.mintAddress.localeCompare(b.mintAddress));
-                default: // newest
-                    return tokens.sort((a, b) => 
-                        new Date(b.timestamp) - new Date(a.timestamp));
-            }
-        }
-
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            currentSort = e.target.value;
-            fetchTokens();
-        });
-
-        async function fetchTokens() {
-            try {
-                const response = await fetch('/tokens');
-                const tokens = await response.json();
-                updateTokenList(tokens);
-            } catch (error) {
-                console.error('Error fetching tokens:', error);
-            }
-        }
-
-        // Refresh every 2 seconds
-        setInterval(fetchTokens, 2000);
+    document.getElementById('sortSelect').addEventListener('change', (e) => {
+        currentSort = e.target.value;
         fetchTokens();
-    </script>
+    });
+
+    async function fetchTokens() {
+        try {
+            const response = await fetch('/tokens');
+            const tokens = await response.json();
+            updateTokenList(tokens);
+        } catch (error) {
+            console.error('Error fetching tokens:', error);
+        }
+    }
+
+    // Refresh every 2 seconds
+    setInterval(fetchTokens, 2000);
+    fetchTokens();
+</script>
 </body>
 </html>
