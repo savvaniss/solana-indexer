@@ -1,12 +1,7 @@
 /**
  * index.js
- *
- * A simple Express server that continuously scans the Solana blockchain
- * for newly created SPL token mints by decoding the InitializeMint
- * instruction data (rather than searching logs).
- *
- * It also skips any transaction that doesn't have a 'message.accountKeys'
- * (e.g. versioned transactions), to avoid "Cannot read property of undefined" errors.
+ * 
+ * Enhanced version with additional logging for debugging.
  */
 const express = require('express');
 const {
@@ -22,7 +17,7 @@ const {
 // -------------------- CONFIG --------------------
 const PORT = 5000;                        // Listen on port 5000
 const HOST = '0.0.0.0';                   // Listen on IP 0.0.0.0
-const SOLANA_CLUSTER = 'mainnet-beta';    // or 'devnet', 'testnet'
+const SOLANA_CLUSTER = 'devnet';          // Changed to 'devnet' for testing
 const POLL_INTERVAL_MS = 5000;            // How frequently to poll for new slots
 // ------------------------------------------------
 
@@ -79,22 +74,36 @@ async function pollNewBlocks() {
           maxSupportedTransactionVersion: 0, // only legacy TX if possible
         });
 
-        if (!block) continue; // skip if block is null/unavailable
+        if (!block) {
+          console.log(`Slot ${slot} has no block data. Skipping...`);
+          continue; // skip if block is null/unavailable
+        }
+
+        console.log(`Processing slot ${slot} with ${block.transactions.length} transactions`);
 
         // Loop over each transaction in the block
         for (const tx of block.transactions) {
           const { transaction, meta } = tx;
-          if (!transaction) continue;             // skip if no transaction object
-          if (!transaction.message) continue;     // skip if there's no message
+          if (!transaction) {
+            console.log(`  Skipping transaction with missing data`);
+            continue;             // skip if no transaction object
+          }
+          if (!transaction.message) {
+            console.log(`  Skipping transaction with missing message`);
+            continue;             // skip if there's no message
+          }
 
           // Optional: if transaction.version is not undefined and > 0, it's versioned
           if (transaction.version !== undefined && transaction.version > 0) {
-            // skip versioned transactions in this demo
-            continue;
+            console.log(`  Skipping versioned transaction ${tx.transaction.signatures[0]}`);
+            continue; // skip versioned transactions in this demo
           }
 
           const message = transaction.message;
-          if (!message.accountKeys) continue; // skip if accountKeys is missing
+          if (!message.accountKeys) {
+            console.log(`  Skipping transaction with missing accountKeys`);
+            continue; // skip if accountKeys is missing
+          }
 
           // Now we can safely parse each instruction
           for (const ix of message.instructions) {
@@ -103,6 +112,8 @@ async function pollNewBlocks() {
 
             // If the program is the SPL Token Program
             if (programId && programId.equals(TOKEN_PROGRAM_ID)) {
+              console.log(`    Found SPL Token Program instruction`);
+
               // Build a TransactionInstruction-like object
               const instructionData = {
                 programId,
@@ -127,10 +138,12 @@ async function pollNewBlocks() {
                 const mintAddress = decoded.keys.mint.pubkey.toBase58();
                 newMints.add(mintAddress);
 
-                console.log(`Discovered new mint at slot ${slot}: ${mintAddress}`);
+                console.log(`      Successfully decoded InitializeMint for mint: ${mintAddress}`);
               } catch (err) {
                 // decodeInitializeMintInstruction throws if it's not actually InitializeMint
                 // or if data is malformed; ignore in that case
+                // Uncomment the line below to see decode errors (optional)
+                // console.log(`      Not an InitializeMint instruction or failed to decode: ${err.message}`);
               }
             }
           }
