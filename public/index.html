@@ -107,7 +107,7 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        .timestamp, .mint-address, .tx-signature, .total-supply, .mint-authority, .freeze-authority {
+        .timestamp, .mint-address, .tx-signature, .total-supply, .mint-authority, .freeze-authority, .token-name, .token-symbol {
             font-size: 0.9em;
             color: var(--on-surface);
             word-break: break-all; /* Ensure text wraps */
@@ -265,6 +265,8 @@
                             <span class="material-icons">schedule</span>
                             ${token.timestamp}
                         </div>
+                        <div class="token-name">Name: ${token.name || 'N/A'}</div>
+                        <div class="token-symbol">Symbol: ${token.symbol || 'N/A'}</div>
                         <div class="mint-address">Mint: ${token.mintAddress}</div>
                         <div class="tx-signature">
                             TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
