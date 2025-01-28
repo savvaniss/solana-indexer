@@ -37,12 +37,14 @@ const monitorNewTokens = async () => {
   // Subscribe to all program accounts for SPL Token
   connection.onProgramAccountChange(
     SPL_TOKEN_PROGRAM_ID,
-    (keyedAccountInfo) => {
-      const { pubkey, accountId } = keyedAccountInfo;
-      // A new token mint is created when a new account is created under SPL Token program
-      // Further decoding can be done to verify it's a mint
-      // For simplicity, we'll assume every new account is a new token
-      const tokenAddress = pubkey.toBase58();
+    (publicKey, accountInfo, context) => {
+      // Ensure that the publicKey is defined
+      if (!publicKey) {
+        console.error('Received undefined publicKey');
+        return;
+      }
+
+      const tokenAddress = publicKey.toBase58();
       const timestamp = new Date().toLocaleString();
       const newToken = { tokenAddress, timestamp };
       tokens.unshift(newToken); // Add to the beginning
