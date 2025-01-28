@@ -1,0 +1,14 @@
+{
+    "name": "solana-token-indexer",
+    "version": "1.0.0",
+    "description": "Basic Solana token mint indexer",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js"
+    },
+    "dependencies": {
+      "@solana/web3.js": "^1.84.1",
+      "express": "^4.18.2"
+    }
+  }
+  

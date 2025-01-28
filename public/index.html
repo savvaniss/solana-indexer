@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Solana Token Mint Indexer</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      h1 {
+        color: #444;
+      }
+      .highlight {
+        color: #0A7F0A; /* green-ish */
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Solana New Token Mint Indexer</h1>
+    <p>
+      This page displays newly created SPL token mint addresses (found by our Node.js indexer).
+    </p>
+    
+    <button id="refreshBtn">Refresh Now</button>
+    <ul id="mintList"></ul>
+
+    <script>
+      const refreshBtn = document.getElementById('refreshBtn');
+      const mintList = document.getElementById('mintList');
+
+      // Fetch new minted addresses from the backend and display them
+      async function fetchMints() {
+        try {
+          const res = await fetch('/api/mints');
+          const data = await res.json();
+          // Clear existing list
+          mintList.innerHTML = '';
+          data.forEach(mintAddr => {
+            const li = document.createElement('li');
+            li.innerHTML = `Mint: <span class="highlight">${mintAddr}</span>`;
+            mintList.appendChild(li);
+          });
+        } catch (err) {
+          console.error('Error fetching mints:', err);
+        }
+      }
+
+      // Refresh manually
+      refreshBtn.addEventListener('click', fetchMints);
+
+      // Also auto-refresh every 10 seconds
+      setInterval(fetchMints, 10_000);
+
+      // Initial load
+      fetchMints();
+    </script>
+  </body>
+</html>
