@@ -48,7 +48,7 @@ async function monitorTokenCreations() {
                         if (initializeIx) {
                             const mintAddress = initializeIx.parsed.info.mint;
 
-                            // Fetch mint account info to get total supply and owner
+                            // Fetch mint account info to get total supply and authorities
                             const mintInfo = await connection.getParsedAccountInfo(new PublicKey(mintAddress), 'confirmed');
                             const mintData = mintInfo.value?.data?.parsed?.info;
 
@@ -58,7 +58,8 @@ async function monitorTokenCreations() {
                                 timestamp: new Date().toLocaleString(),
                                 decimals: initializeIx.parsed.info.decimals,
                                 totalSupply: mintData?.supply || 'N/A',
-                                owner: mintData?.owner || 'N/A',
+                                mintAuthority: mintData?.mintAuthority?.address || 'N/A',
+                                freezeAuthority: mintData?.freezeAuthority?.address || 'None',
                                 explorerLink: `https://explorer.solana.com/tx/${signature}?cluster=devnet`
                             };
 
@@ -112,7 +113,8 @@ async function monitorTokenCreations() {
                                     timestamp: new Date(tx.blockTime * 1000).toLocaleString(),
                                     decimals: initializeIx.parsed.info.decimals,
                                     totalSupply: mintData?.supply || 'N/A',
-                                    owner: mintData?.owner || 'N/A',
+                                    mintAuthority: mintData?.mintAuthority?.address || 'N/A',
+                                    freezeAuthority: mintData?.freezeAuthority?.address || 'None',
                                     explorerLink: `https://explorer.solana.com/tx/${signature}?cluster=devnet`
                                 };
 

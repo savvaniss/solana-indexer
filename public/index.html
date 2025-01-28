@@ -80,6 +80,7 @@
             font-family: 'Roboto Mono', monospace;
             color: var(--primary);
             font-size: 0.95em;
+            word-break: break-all; /* Ensure long addresses wrap */
         }
 
         .token-list, .wallet-tokens {
@@ -106,9 +107,10 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        .timestamp, .mint-address, .tx-signature, .total-supply, .owner {
+        .timestamp, .mint-address, .tx-signature, .total-supply, .mint-authority, .freeze-authority {
             font-size: 0.9em;
             color: var(--on-surface);
+            word-break: break-all; /* Ensure text wraps */
         }
 
         .tx-signature a {
@@ -213,6 +215,7 @@
                 <thead>
                     <tr>
                         <th>Token Name</th>
+                        <th>Symbol</th>
                         <th>Mint Address</th>
                         <th>Amount</th>
                     </tr>
@@ -247,24 +250,40 @@
          * Update the token list in the DOM with additional information
          * @param {Array} tokens - Array of token objects
          */
-        function updateTokenList(tokens) {
+        async function updateTokenList(tokens) {
             const container = document.getElementById('tokenList');
             const sortedTokens = sortTokens([...tokens]);
-            
-            container.innerHTML = sortedTokens.map(token => `
-                <div class="token-card">
-                    <div class="timestamp">
-                        <span class="material-icons">schedule</span>
-                        ${token.timestamp}
+
+            // Clear the container before adding new tokens
+            container.innerHTML = '';
+
+            // Iterate through each token and create a card
+            for (const token of sortedTokens) {
+                // Fetch token metadata (name and symbol)
+                const { name, symbol } = await fetchTokenMetadata(token.mintAddress);
+
+                // Create the token card HTML
+                const tokenCard = `
+                    <div class="token-card">
+                        <div class="timestamp">
+                            <span class="material-icons">schedule</span>
+                            ${token.timestamp}
+                        </div>
+                        <div class="mint-address">Mint: ${token.mintAddress}</div>
+                        <div class="tx-signature">
+                            TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
+                        </div>
+                        <div class="total-supply">Total Supply: ${token.totalSupply}</div>
+                        <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
+                        <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
+                        <div class="token-name">Name: ${name || 'Unknown Token'}</div>
+                        <div class="token-symbol">Symbol: ${symbol || 'N/A'}</div>
                     </div>
-                    <div class="mint-address">Mint: ${token.mintAddress}</div>
-                    <div class="tx-signature">
-                        TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
-                    </div>
-                    <div class="total-supply">Total Supply: ${token.totalSupply}</div>
-                    <div class="owner">Owner: ${token.owner}</div>
-                </div>
-            `).join('');
+                `;
+
+                // Append the token card to the container
+                container.insertAdjacentHTML('beforeend', tokenCard);
+            }
         }
 
         /**
@@ -431,7 +450,7 @@
          */
         async function fetchWalletTokens(publicKey) {
             walletErrorDiv.textContent = '';
-            walletTokensTableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+            walletTokensTableBody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
 
             try {
                 // Fetch all token accounts for the public key
@@ -443,7 +462,7 @@
                 );
 
                 if (tokenAccounts.value.length === 0) {
-                    walletTokensTableBody.innerHTML = '<tr><td colspan="3">No token holdings found.</td></tr>';
+                    walletTokensTableBody.innerHTML = '<tr><td colspan="4">No token holdings found.</td></tr>';
                     return;
                 }
 
@@ -457,12 +476,13 @@
                     const amount = accountData.tokenAmount.uiAmount;
                     const decimals = accountData.tokenAmount.decimals;
 
-                    // Fetch token name from token list
-                    const tokenName = await fetchTokenName(mintAddress) || 'Unknown Token';
+                    // Fetch token metadata (name and symbol)
+                    const { name, symbol } = await fetchTokenMetadata(mintAddress);
 
                     const row = `
                         <tr>
-                            <td>${tokenName}</td>
+                            <td>${name || 'Unknown Token'}</td>
+                            <td>${symbol || 'N/A'}</td>
                             <td>${mintAddress}</td>
                             <td>${amount}</td>
                         </tr>
@@ -478,21 +498,27 @@
         }
 
         /**
-         * Function to Fetch Token Name from Token List (Optional)
+         * Function to Fetch Token Metadata (Name and Symbol) from Token List
          * @param {string} mintAddress - Mint address of the token
-         * @returns {string|null} - Name of the token or null if not found
+         * @returns {Object} - Object containing name and symbol
          */
-        async function fetchTokenName(mintAddress) {
+        async function fetchTokenMetadata(mintAddress) {
             try {
                 // Fetch token list from Solana Labs (publicly available)
                 const tokenListUrl = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
                 const response = await fetch(tokenListUrl);
                 const data = await response.json();
                 const token = data.tokens.find(t => t.address === mintAddress);
-                return token ? token.name : null;
+                return {
+                    name: token ? token.name : null,
+                    symbol: token ? token.symbol : null
+                };
             } catch (error) {
                 console.error('Error fetching token list:', error);
-                return null;
+                return {
+                    name: null,
+                    symbol: null
+                };
             }
         }
 
