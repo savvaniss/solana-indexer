@@ -1,72 +1,53 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
 const { Connection, PublicKey, clusterApiUrl } = require('@solana/web3.js');
 
 const app = express();
 const port = 5000;
-
-app.use(cors());
-app.use(bodyParser.json());
-
-// Connect to Solana devnet with explicit configuration
 const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
 let newTokens = [];
 
-async function monitorTokens() {
-    console.log('Starting Solana devnet monitoring...');
+async function monitorTokenCreations() {
+    console.log('Monitoring token creations on devnet...');
     
-    try {
-        const subscriptionId = connection.onLogs(
-            'all',
-            async ({ logs, signature }) => {
-                try {
-                    if (logs.some(log => log.includes('initializeMint'))) {
-                        console.log('Found initializeMint log, processing...');
-                        const tx = await connection.getConfirmedTransaction(signature);
-                        
-                        // Find the initializeMint instruction
-                        const initializeIx = tx.transaction.message.instructions.find(ix => 
-                            ix.programId.toString() === TOKEN_PROGRAM_ID.toString() &&
-                            ix.parsed.type === 'initializeMint'
-                        );
+    const subscriptionId = connection.onSignature(
+        async (signatureResult) => {
+            try {
+                const tx = await connection.getParsedTransaction(
+                    signatureResult.signature,
+                    { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }
+                );
 
-                        if (initializeIx) {
-                            const mintAddress = initializeIx.parsed.info.mint;
-                            const tokenInfo = {
-                                signature,
-                                mintAddress,
-                                timestamp: new Date().toLocaleString(),
-                            };
-                            
-                            newTokens.unshift(tokenInfo);
-                            console.log('New token detected:', tokenInfo);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error processing transaction:', error);
+                const initializeMintIx = tx.transaction.message.instructions.find(ix => 
+                    ix.programId.equals(TOKEN_PROGRAM_ID) &&
+                    ix.parsed?.type === 'initializeMint'
+                );
+
+                if (initializeMintIx) {
+                    const tokenInfo = {
+                        signature: signatureResult.signature,
+                        mintAddress: initializeMintIx.parsed.info.mint,
+                        timestamp: new Date().toLocaleString(),
+                        decimals: initializeMintIx.parsed.info.decimals
+                    };
+
+                    newTokens.unshift(tokenInfo);
+                    console.log('Detected new token:', tokenInfo);
                 }
-            },
-            'confirmed'
-        );
-        
-        console.log('Subscription active with ID:', subscriptionId);
-    } catch (error) {
-        console.error('Connection error:', error);
-    }
+            } catch (error) {
+                console.error('Error processing transaction:', error);
+            }
+        },
+        { commitment: 'confirmed' }
+    );
+
+    console.log('Active subscription ID:', subscriptionId);
 }
 
-monitorTokens();
+monitorTokenCreations();
 
-// API endpoint to get tokens
-app.get('/tokens', (req, res) => {
-    res.json(newTokens.slice(0, 50));
-});
-
+// Rest of the server code remains the same
+app.get('/tokens', (req, res) => res.json(newTokens.slice(0, 50)));
 app.use(express.static('public'));
-
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${port}`);
-});
+app.listen(port, '0.0.0.0', () => console.log(`Server running on port ${port}`));
