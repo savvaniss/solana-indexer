@@ -1,11 +1,9 @@
-<!-- index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Token Tracker</title>
+    <title>Solana Token Tracker (Mainnet)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     
@@ -164,6 +162,12 @@
             font-size: 0.9em;
         }
 
+        .exch-info {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #333;
+        }
+
         @media (max-width: 600px) {
             .token-list, .wallet-tokens {
                 grid-template-columns: 1fr;
@@ -184,7 +188,7 @@
     <div class="container">
         <div class="header">
             <div>
-                <h1>🌱 Solana Devnet Token Tracker</h1>
+                <h1>🌱 Solana Mainnet Token Tracker</h1>
                 <p>Newly created tokens appear here in real-time</p>
             </div>
             <div class="sort-controls">
@@ -255,11 +259,19 @@
             const sortedTokens = sortTokens([...tokens]);
 
             sortedTokens.forEach(token => {
+                // Check if we've already displayed this transaction signature
                 if (!displayedSignatures.has(token.signature)) {
                     displayedSignatures.add(token.signature);
 
                     const tokenCard = document.createElement('div');
                     tokenCard.className = 'token-card';
+
+                    // Construct DEX listing info
+                    const raydiumListed = token.listedOnRaydium ? 'Listed' : 'Not Listed';
+                    const orcaListed = token.listedOnOrca ? 'Listed' : 'Not Listed';
+                    const raydiumLiquidity = token.raydiumLiquidity || 0;
+                    const orcaLiquidity = token.orcaLiquidity || 0;
+
                     tokenCard.innerHTML = `
                         <div class="timestamp">
                             <span class="material-icons">schedule</span>
@@ -269,11 +281,17 @@
                         <div class="token-symbol">Symbol: ${token.symbol || 'N/A'}</div>
                         <div class="mint-address">Mint: ${token.mintAddress}</div>
                         <div class="tx-signature">
-                            TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
+                            TX: <a href="https://explorer.solana.com/tx/${token.signature}" target="_blank">
+                                ${token.signature.slice(0, 20)}...
+                            </a>
                         </div>
                         <div class="total-supply">Total Supply: ${token.totalSupply}</div>
                         <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
                         <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
+                        <div class="exch-info">
+                            <strong>Raydium:</strong> ${raydiumListed} (Liquidity: ${raydiumLiquidity})<br/>
+                            <strong>Orca:</strong> ${orcaListed} (Liquidity: ${orcaLiquidity})
+                        </div>
                     `;
                     container.prepend(tokenCard); // Add new tokens to the top
                 }
@@ -315,9 +333,9 @@
         });
 
         /**
-         * Initial fetch every 2 seconds
+         * Fetch new tokens every 10 seconds
          */
-        setInterval(fetchTokens, 2000);
+        setInterval(fetchTokens, 10000);
         fetchTokens();
 
         /**
@@ -329,8 +347,11 @@
         const walletTokensTableBody = document.querySelector('#walletTokensTable tbody');
         const walletErrorDiv = document.getElementById('walletError');
 
-        // Solana Connection (Devnet)
-        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
+        // Solana Connection (Mainnet)
+        const connection = new solanaWeb3.Connection(
+            solanaWeb3.clusterApiUrl('mainnet-beta'), 
+            'confirmed'
+        );
 
         /**
          * Check if Phantom is installed
@@ -495,7 +516,7 @@
         }
 
         /**
-         * Function to Fetch Token Details (Name and Symbol) from Token List
+         * Function to Fetch Token Details (Name and Symbol) from Solana Token List
          * @param {string} mintAddress - Mint address of the token
          * @returns {Object|null} - Object containing name and symbol or null if not found
          */
@@ -512,7 +533,6 @@
                 return null;
             }
         }
-
     </script>
 </body>
 </html>
