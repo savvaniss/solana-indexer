@@ -9,37 +9,40 @@ const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 let newTokens = [];
 
 async function monitorTokenCreations() {
-    console.log('Monitoring token creations on devnet...');
+    console.log('Monitoring token program logs...');
     
-    const subscriptionId = connection.onSignature(
-        async (signatureResult) => {
+    const subscriptionId = connection.onLogs(
+        TOKEN_PROGRAM_ID,
+        async ({ logs, signature }) => {
             try {
-                const tx = await connection.getParsedTransaction(
-                    signatureResult.signature,
-                    { commitment: 'confirmed', maxSupportedTransactionVersion: 0 }
-                );
+                if (logs.some(log => log.includes('initializeMint'))) {
+                    const tx = await connection.getParsedTransaction(signature, {
+                        commitment: 'confirmed',
+                        maxSupportedTransactionVersion: 0
+                    });
 
-                const initializeMintIx = tx.transaction.message.instructions.find(ix => 
-                    ix.programId.equals(TOKEN_PROGRAM_ID) &&
-                    ix.parsed?.type === 'initializeMint'
-                );
+                    const initializeIx = tx.transaction.message.instructions.find(ix => 
+                        ix.programId.equals(TOKEN_PROGRAM_ID) &&
+                        ix.parsed?.type === 'initializeMint'
+                    );
 
-                if (initializeMintIx) {
-                    const tokenInfo = {
-                        signature: signatureResult.signature,
-                        mintAddress: initializeMintIx.parsed.info.mint,
-                        timestamp: new Date().toLocaleString(),
-                        decimals: initializeMintIx.parsed.info.decimals
-                    };
+                    if (initializeIx) {
+                        const tokenInfo = {
+                            signature,
+                            mintAddress: initializeIx.parsed.info.mint,
+                            timestamp: new Date().toLocaleString(),
+                            decimals: initializeIx.parsed.info.decimals
+                        };
 
-                    newTokens.unshift(tokenInfo);
-                    console.log('Detected new token:', tokenInfo);
+                        newTokens.unshift(tokenInfo);
+                        console.log('New token detected:', tokenInfo);
+                    }
                 }
             } catch (error) {
-                console.error('Error processing transaction:', error);
+                console.error('Error processing logs:', error);
             }
         },
-        { commitment: 'confirmed' }
+        'confirmed'
     );
 
     console.log('Active subscription ID:', subscriptionId);
