@@ -1,3 +1,5 @@
+<!-- index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +8,8 @@
     <title>Solana Token Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Solana Web3.js Library -->
     <script src="https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js"></script>
     
     <style>
@@ -45,72 +49,168 @@
             gap: 16px;
         }
 
-        .load-more {
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        #loadMoreButton {
-            padding: 12px 24px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-
-        #loadMoreButton:hover {
-            opacity: 0.9;
-        }
-
-        #loadMoreButton:disabled {
-            background: var(--divider);
-            cursor: not-allowed;
-        }
-
-        .wallet-pagination-controls {
+        .sort-controls {
             display: flex;
             gap: 16px;
             align-items: center;
-            margin-bottom: 16px;
         }
 
-        .wallet-pagination-controls button {
+        .wallet-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #connectButton {
             padding: 8px 16px;
-            background: var(--primary);
-            color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
+            background-color: var(--primary);
+            color: white;
             cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
         }
 
-        .wallet-pagination-controls button:disabled {
-            background: var(--divider);
-            cursor: not-allowed;
+        #connectButton:hover {
+            background-color: var(--secondary);
         }
 
-        /* Keep all previous existing styles and add these new ones */
+        #walletAddress {
+            font-family: 'Roboto Mono', monospace;
+            color: var(--primary);
+            font-size: 0.95em;
+            word-break: break-all; /* Ensure long addresses wrap */
+        }
+
+        .token-list, .wallet-tokens {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            margin-bottom: 24px;
+        }
+
+        .token-card, .wallet-token-card {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 4px solid var(--primary);
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* Space between elements */
+        }
+
+        .token-card:hover, .wallet-token-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .timestamp, .mint-address, .tx-signature, .total-supply, .mint-authority, .freeze-authority, .token-name, .token-symbol {
+            font-size: 0.9em;
+            color: var(--on-surface);
+            word-break: break-all; /* Ensure text wraps */
+        }
+
+        .tx-signature a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .tx-signature a:hover {
+            text-decoration: underline;
+        }
+
+        .wallet-tokens-section {
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .wallet-tokens-section h2 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 1.5em;
+            color: var(--on-surface);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--divider);
+        }
+
+        th {
+            background-color: var(--secondary);
+            color: white;
+            font-weight: 500;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .error-message {
+            color: var(--error);
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 600px) {
+            .token-list, .wallet-tokens {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .wallet-tokens-section {
+                padding: 16px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <!-- Existing header content -->
+            <div>
+                <h1>🌱 Solana Devnet Token Tracker</h1>
+                <p>Newly created tokens appear here in real-time</p>
+            </div>
+            <div class="sort-controls">
+                <label for="sortSelect">Sort:</label>
+                <select id="sortSelect">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="alphabetical">Alphabetical</option>
+                    <option value="supply">Total Supply</option>
+                </select>
+            </div>
+            <!-- Connect Wallet Button and Wallet Address -->
+            <div class="wallet-section">
+                <button id="connectButton">Connect Wallet</button>
+                <span id="walletAddress"></span>
+            </div>
         </div>
         
-        <div class="token-list" id="tokenList"></div>
-        <div class="load-more">
-            <button id="loadMoreButton" onclick="loadMoreTokens()">Load More Tokens</button>
+        <!-- Token List Section -->
+        <div class="token-list" id="tokenList">
+            <!-- Dynamically populated token cards -->
         </div>
-
+        
+        <!-- Wallet Tokens Section -->
         <div class="wallet-tokens-section" id="walletTokensSection" style="display: none;">
             <h2>Your Wallet's Token Holdings</h2>
-            <div class="wallet-pagination-controls">
-                <button id="walletPrev" onclick="changeWalletPage(-1)">← Previous</button>
-                <span id="walletPageNumber">Page 1</span>
-                <button id="walletNext" onclick="changeWalletPage(1)">Next →</button>
-            </div>
             <table id="walletTokensTable">
                 <thead>
                     <tr>
@@ -119,34 +219,37 @@
                         <th>Amount</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                    <!-- Dynamically populated wallet token rows -->
+                </tbody>
             </table>
             <div id="walletError" class="error-message"></div>
         </div>
     </div>
 
     <script>
-        let currentSort = 'newest';
-        let tokenCurrentPage = 1;
-        let walletCurrentPage = 1;
-        const ITEMS_PER_PAGE = 10;
-        let allWalletTokens = [];
-        let displayedSignatures = new Set();
+        // JavaScript Code for Enhanced Token Tracker
 
+        let currentSort = 'newest';
+        let displayedSignatures = new Set(); // To track displayed tokens
+
+        /**
+         * Fetch tokens from the backend and update the token list
+         */
         async function fetchTokens() {
             try {
-                const response = await fetch(`/tokens?page=${tokenCurrentPage}&limit=${ITEMS_PER_PAGE}`);
-                const { tokens, total } = await response.json();
-                
-                document.getElementById('loadMoreButton').disabled = 
-                    (tokenCurrentPage * ITEMS_PER_PAGE) >= total;
-
+                const response = await fetch('/tokens');
+                const tokens = await response.json();
                 updateTokenList(tokens);
             } catch (error) {
                 console.error('Error fetching tokens:', error);
             }
         }
 
+        /**
+         * Update the token list in the DOM with additional information
+         * @param {Array} tokens - Array of token objects
+         */
         function updateTokenList(tokens) {
             const container = document.getElementById('tokenList');
             const sortedTokens = sortTokens([...tokens]);
@@ -154,62 +257,236 @@
             sortedTokens.forEach(token => {
                 if (!displayedSignatures.has(token.signature)) {
                     displayedSignatures.add(token.signature);
-                    const tokenCard = createTokenCard(token);
-                    container.appendChild(tokenCard);
+
+                    const tokenCard = document.createElement('div');
+                    tokenCard.className = 'token-card';
+                    tokenCard.innerHTML = `
+                        <div class="timestamp">
+                            <span class="material-icons">schedule</span>
+                            ${token.timestamp}
+                        </div>
+                        <div class="token-name">Name: ${token.name || 'N/A'}</div>
+                        <div class="token-symbol">Symbol: ${token.symbol || 'N/A'}</div>
+                        <div class="mint-address">Mint: ${token.mintAddress}</div>
+                        <div class="tx-signature">
+                            TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
+                        </div>
+                        <div class="total-supply">Total Supply: ${token.totalSupply}</div>
+                        <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
+                        <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
+                    `;
+                    container.prepend(tokenCard); // Add new tokens to the top
                 }
             });
         }
 
-        function createTokenCard(token) {
-            const tokenCard = document.createElement('div');
-            tokenCard.className = 'token-card';
-            tokenCard.innerHTML = `
-                <div class="timestamp">
-                    <span class="material-icons">schedule</span>
-                    ${token.timestamp}
-                </div>
-                <div class="token-name">Name: ${token.name || 'N/A'}</div>
-                <div class="token-symbol">Symbol: ${token.symbol || 'N/A'}</div>
-                <div class="mint-address">Mint: ${token.mintAddress}</div>
-                <div class="tx-signature">
-                    TX: <a href="${token.explorerLink}" target="_blank">${token.signature.slice(0, 20)}...</a>
-                </div>
-                <div class="total-supply">Total Supply: ${token.totalSupply}</div>
-                <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
-                <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
-            `;
-            return tokenCard;
+        /**
+         * Sort tokens based on the selected criteria
+         * @param {Array} tokens - Array of token objects
+         * @returns {Array} - Sorted array of token objects
+         */
+        function sortTokens(tokens) {
+            switch(currentSort) {
+                case 'oldest':
+                    return tokens.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp));
+                case 'alphabetical':
+                    return tokens.sort((a, b) => 
+                        a.mintAddress.localeCompare(b.mintAddress));
+                case 'supply':
+                    return tokens.sort((a, b) => 
+                        parseInt(b.totalSupply) - parseInt(a.totalSupply));
+                default: // newest
+                    return tokens.sort((a, b) => 
+                        new Date(b.timestamp) - new Date(a.timestamp));
+            }
         }
 
-        function loadMoreTokens() {
-            tokenCurrentPage++;
+        /**
+         * Handle sort selection changes
+         */
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            currentSort = e.target.value;
+            // Clear current display and reset tracking
+            const container = document.getElementById('tokenList');
+            container.innerHTML = '';
+            displayedSignatures.clear();
             fetchTokens();
-        }
+        });
 
-        // Wallet Pagination Functions
+        /**
+         * Initial fetch every 2 seconds
+         */
+        setInterval(fetchTokens, 2000);
+        fetchTokens();
+
+        /**
+         * Phantom Wallet Integration
+         */
+        const connectButton = document.getElementById('connectButton');
+        const walletAddressSpan = document.getElementById('walletAddress');
+        const walletTokensSection = document.getElementById('walletTokensSection');
+        const walletTokensTableBody = document.querySelector('#walletTokensTable tbody');
+        const walletErrorDiv = document.getElementById('walletError');
+
+        // Solana Connection (Devnet)
+        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
+
+        /**
+         * Check if Phantom is installed
+         * @returns {boolean}
+         */
+        const isPhantomInstalled = () => {
+            const { solana } = window;
+            return solana && solana.isPhantom;
+        };
+
+        /**
+         * Display wallet address in the UI
+         * @param {string} address - Public key of the wallet
+         */
+        const displayWalletAddress = (address) => {
+            walletAddressSpan.textContent = `Connected: ${address.slice(0, 4)}...${address.slice(-4)}`;
+            connectButton.textContent = 'Disconnect Wallet';
+        };
+
+        /**
+         * Clear wallet address from the UI
+         */
+        const clearWalletAddress = () => {
+            walletAddressSpan.textContent = '';
+            connectButton.textContent = 'Connect Wallet';
+        };
+
+        /**
+         * Connect to Phantom Wallet
+         */
+        const connectWallet = async () => {
+            try {
+                const { solana } = window;
+
+                if (!solana) {
+                    alert('Phantom wallet not found! Please install it from https://phantom.app/');
+                    return;
+                }
+
+                const response = await solana.connect();
+                console.log('Connected with Public Key:', response.publicKey.toString());
+                displayWalletAddress(response.publicKey.toString());
+                walletTokensSection.style.display = 'block';
+                fetchWalletTokens(response.publicKey);
+                
+                // Listen for account changes
+                solana.on('accountChanged', (newPublicKey) => {
+                    if (newPublicKey) {
+                        displayWalletAddress(newPublicKey.toString());
+                        fetchWalletTokens(newPublicKey);
+                    } else {
+                        clearWalletAddress();
+                        walletTokensSection.style.display = 'none';
+                        walletTokensTableBody.innerHTML = '';
+                    }
+                });
+
+                // Listen for disconnect event
+                solana.on('disconnect', () => {
+                    clearWalletAddress();
+                    walletTokensSection.style.display = 'none';
+                    walletTokensTableBody.innerHTML = '';
+                });
+
+            } catch (err) {
+                console.error('Connection to Phantom wallet failed:', err.message);
+            }
+        };
+
+        /**
+         * Disconnect Wallet (Optional UI Handling)
+         */
+        const disconnectWallet = () => {
+            const { solana } = window;
+            if (solana && solana.isConnected) {
+                solana.disconnect();
+                clearWalletAddress();
+                walletTokensSection.style.display = 'none';
+                walletTokensTableBody.innerHTML = '';
+            }
+        };
+
+        /**
+         * Handle Connect/Disconnect Button Click
+         */
+        connectButton.addEventListener('click', async () => {
+            if (isPhantomInstalled()) {
+                if (window.solana.isConnected) {
+                    disconnectWallet();
+                } else {
+                    await connectWallet();
+                }
+            } else {
+                alert('Phantom wallet not found! Please install it from https://phantom.app/');
+            }
+        });
+
+        /**
+         * Initial check for wallet connection on page load
+         */
+        window.addEventListener('load', async () => {
+            if (isPhantomInstalled()) {
+                const { solana } = window;
+                if (solana && solana.isConnected) {
+                    displayWalletAddress(solana.publicKey.toString());
+                    walletTokensSection.style.display = 'block';
+                    fetchWalletTokens(solana.publicKey);
+                }
+            }
+        });
+
+        /**
+         * Function to Fetch and Display Wallet Tokens
+         * @param {PublicKey} publicKey - Public key of the connected wallet
+         */
         async function fetchWalletTokens(publicKey) {
             walletErrorDiv.textContent = '';
             walletTokensTableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
 
             try {
+                // Fetch all token accounts for the public key
                 const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
                     publicKey,
-                    { programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') }
+                    {
+                        programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+                    }
                 );
 
-                allWalletTokens = await Promise.all(tokenAccounts.value.map(async (accountInfo) => {
+                if (tokenAccounts.value.length === 0) {
+                    walletTokensTableBody.innerHTML = '<tr><td colspan="3">No token holdings found.</td></tr>';
+                    return;
+                }
+
+                // Clear the table body
+                walletTokensTableBody.innerHTML = '';
+
+                // Iterate through each token account and display details
+                for (const accountInfo of tokenAccounts.value) {
                     const accountData = accountInfo.account.data.parsed.info;
                     const mintAddress = accountData.mint;
                     const amount = accountData.tokenAmount.uiAmount;
-                    const tokenDetails = await fetchTokenDetails(mintAddress);
-                    return {
-                        name: tokenDetails?.name || 'Unknown Token',
-                        mintAddress,
-                        amount
-                    };
-                }));
+                    const decimals = accountData.tokenAmount.decimals;
 
-                updateWalletTable();
+                    // Fetch token name and symbol from token list
+                    const tokenDetails = await fetchTokenDetails(mintAddress) || { name: 'Unknown Token', symbol: '---' };
+
+                    const row = `
+                        <tr>
+                            <td>${tokenDetails.name}</td>
+                            <td>${mintAddress}</td>
+                            <td>${amount}</td>
+                        </tr>
+                    `;
+                    walletTokensTableBody.insertAdjacentHTML('beforeend', row);
+                }
+
             } catch (error) {
                 console.error('Error fetching wallet tokens:', error);
                 walletErrorDiv.textContent = 'Failed to fetch wallet tokens. Please try again.';
@@ -217,34 +494,25 @@
             }
         }
 
-        function updateWalletTable() {
-            const start = (walletCurrentPage - 1) * ITEMS_PER_PAGE;
-            const end = start + ITEMS_PER_PAGE;
-            const pageTokens = allWalletTokens.slice(start, end);
-            const tbody = document.querySelector('#walletTokensTable tbody');
-
-            tbody.innerHTML = pageTokens.map(token => `
-                <tr>
-                    <td>${token.name}</td>
-                    <td>${token.mintAddress}</td>
-                    <td>${token.amount}</td>
-                </tr>
-            `).join('');
-
-            document.getElementById('walletPageNumber').textContent = 
-                `Page ${walletCurrentPage} of ${Math.ceil(allWalletTokens.length / ITEMS_PER_PAGE)}`;
-            document.getElementById('walletPrev').disabled = walletCurrentPage === 1;
-            document.getElementById('walletNext').disabled = 
-                walletCurrentPage * ITEMS_PER_PAGE >= allWalletTokens.length;
+        /**
+         * Function to Fetch Token Details (Name and Symbol) from Token List
+         * @param {string} mintAddress - Mint address of the token
+         * @returns {Object|null} - Object containing name and symbol or null if not found
+         */
+        async function fetchTokenDetails(mintAddress) {
+            try {
+                // Fetch token list from Solana Labs (publicly available)
+                const tokenListUrl = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
+                const response = await fetch(tokenListUrl);
+                const data = await response.json();
+                const token = data.tokens.find(t => t.address === mintAddress);
+                return token ? { name: token.name, symbol: token.symbol } : null;
+            } catch (error) {
+                console.error('Error fetching token list:', error);
+                return null;
+            }
         }
 
-        function changeWalletPage(delta) {
-            walletCurrentPage += delta;
-            updateWalletTable();
-        }
-
-        // Keep all existing Solana connection and other functions
-        // Add the remaining original JavaScript code here
     </script>
 </body>
 </html>
