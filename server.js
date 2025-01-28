@@ -1,67 +1,50 @@
-// server.js
-
 const express = require('express');
+const bodyParser = require('body-parser');
 const cors = require('cors');
-const { Connection, clusterApiUrl, PublicKey } = require('@solana/web3.js');
+const { Connection, PublicKey } = require('@solana/web3.js');
 
 const app = express();
-const PORT = 5000;
+const port = 5000;
 
-// Middleware
 app.use(cors());
-app.use(express.static('public'));
+app.use(bodyParser.json());
 
-// Initialize Solana connection to devnet
-const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+// Connect to Solana devnet
+const connection = new Connection('https://api.devnet.solana.com');
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
-// Store discovered tokens
-let tokens = [];
+let newTokens = [];
 
-// Function to fetch existing tokens at startup
-const fetchExistingTokens = async () => {
-  console.log('Fetching existing tokens...');
-  // Note: Solana doesn't have a straightforward API to list all tokens.
-  // This requires indexing or using external services.
-  // For demonstration, we'll skip fetching existing tokens.
-};
+async function monitorTokens() {
+    connection.onLogs('all', async ({ logs, signature }) => {
+        if (logs.some(log => log.includes('initializeMint'))) {
+            const transaction = await connection.getParsedTransaction(signature);
+            const mintAccount = transaction.transaction.message.instructions
+                .find(ix => ix.programId.equals(TOKEN_PROGRAM_ID))
+                .accounts[0];
+            
+            const tokenInfo = {
+                signature,
+                mintAddress: mintAccount.toBase58(),
+                timestamp: new Date().toLocaleString(),
+            };
+            
+            newTokens.unshift(tokenInfo);
+            console.log('New token detected:', tokenInfo);
+        }
+    });
+}
 
-// Function to monitor for new token creations
-const monitorNewTokens = async () => {
-  console.log('Monitoring for new tokens on Solana devnet...');
+monitorTokens();
 
-  // SPL Token program ID
-  const SPL_TOKEN_PROGRAM_ID = new PublicKey(
-    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
-  );
-
-  // Subscribe to all program accounts for SPL Token
-  connection.onProgramAccountChange(
-    SPL_TOKEN_PROGRAM_ID,
-    (publicKey, accountInfo, context) => {
-      // Ensure that the publicKey is defined
-      if (!publicKey) {
-        console.error('Received undefined publicKey');
-        return;
-      }
-
-      const tokenAddress = publicKey.toBase58();
-      const timestamp = new Date().toLocaleString();
-      const newToken = { tokenAddress, timestamp };
-      tokens.unshift(newToken); // Add to the beginning
-      console.log(`New Token Detected: ${tokenAddress} at ${timestamp}`);
-    },
-    'confirmed'
-  );
-};
-
-// API endpoint to get the list of tokens
-app.get('/api/tokens', (req, res) => {
-  res.json(tokens);
+// API endpoint to get tokens
+app.get('/tokens', (req, res) => {
+    res.json(newTokens.slice(0, 50)); // Return last 50 tokens
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  fetchExistingTokens();
-  monitorNewTokens();
+// Serve static files
+app.use(express.static('public'));
+
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on http://localhost:${port}`);
 });

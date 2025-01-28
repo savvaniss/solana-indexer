@@ -1,47 +1,112 @@
-<!-- public/index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Solana Token Scanner</title>
-  <!-- Materialize CSS -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
-  <!-- Custom CSS -->
-  <link href="style.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Token Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a8a5e6;
+            --background: #f8f9fa;
+            --surface: #ffffff;
+            --error: #ff5252;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background);
+            color: #2d3436;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .token-list {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        }
+
+        .token-card {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .token-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .mint-address {
+            font-size: 0.9em;
+            color: var(--primary);
+            word-break: break-all;
+            margin: 10px 0;
+        }
+
+        .timestamp {
+            font-size: 0.8em;
+            color: #636e72;
+        }
+
+        @media (max-width: 600px) {
+            .token-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-
-  <nav class="blue-grey darken-4">
-    <div class="nav-wrapper container">
-      <a href="#" class="brand-logo">Solana Token Scanner</a>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Solana Devnet Token Tracker</h1>
+            <p>Newly created tokens will appear below</p>
+        </div>
+        <div class="token-list" id="tokenList"></div>
     </div>
-  </nav>
 
-  <div class="container">
-    <h4 class="center-align">Newly Created Tokens on Solana Devnet</h4>
-    <div class="row">
-      <div class="col s12">
-        <table class="highlight responsive-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Token Address</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody id="token-table-body">
-            <!-- Tokens will be injected here -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+    <script>
+        function updateTokenList(tokens) {
+            const container = document.getElementById('tokenList');
+            container.innerHTML = tokens.map(token => `
+                <div class="token-card">
+                    <div class="timestamp">${token.timestamp}</div>
+                    <div class="mint-address">${token.mintAddress}</div>
+                    <div class="signature">TX: ${token.signature.slice(0, 20)}...</div>
+                </div>
+            `).join('');
+        }
 
-  <!-- Materialize JS and dependencies -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-  <!-- Custom JS -->
-  <script src="script.js"></script>
+        async function fetchTokens() {
+            try {
+                const response = await fetch('/tokens');
+                const tokens = await response.json();
+                updateTokenList(tokens);
+            } catch (error) {
+                console.error('Error fetching tokens:', error);
+            }
+        }
+
+        // Refresh every 2 seconds
+        setInterval(fetchTokens, 2000);
+        fetchTokens();
+    </script>
 </body>
 </html>
