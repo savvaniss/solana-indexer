@@ -1,118 +1,47 @@
+<!-- public/index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <!-- Ensure mobile responsiveness -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Solana Token Mint Indexer</title>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solana Token Scanner</title>
+  <!-- Materialize CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <!-- Custom CSS -->
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
 
-    <!-- Materialize CSS (via CDN) -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
-    />
+  <nav class="blue-grey darken-4">
+    <div class="nav-wrapper container">
+      <a href="#" class="brand-logo">Solana Token Scanner</a>
+    </div>
+  </nav>
 
-    <!-- Custom Styles -->
-    <style>
-      body {
-        background-color: #f7f9fa; /* Soft background */
-      }
-      .brand-header {
-        background-color: #80cbc4; /* Teal lighten-3 */
-        padding: 20px;
-      }
-      .brand-header h1 {
-        margin: 0;
-        color: #004d40; /* Teal dark color for contrast */
-        font-size: 2rem;
-      }
-      .mint-item {
-        font-weight: 500;
-        color: #00695c; /* Teal darken-3 */
-      }
-      .mint-item small {
-        color: #78909c; /* Blue-grey lighten for subtle text */
-      }
-    </style>
-  </head>
-
-  <body>
-    <!-- HEADER / NAV -->
-    <div class="brand-header">
-      <div class="container">
-        <h1 class="center-align">Solana Token Mint Indexer</h1>
+  <div class="container">
+    <h4 class="center-align">Newly Created Tokens on Solana Devnet</h4>
+    <div class="row">
+      <div class="col s12">
+        <table class="highlight responsive-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Token Address</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="token-table-body">
+            <!-- Tokens will be injected here -->
+          </tbody>
+        </table>
       </div>
     </div>
+  </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="container">
-      <div class="section">
-        <div class="row">
-          <div class="col s12">
-            <div class="card teal lighten-5">
-              <div class="card-content">
-                <span class="card-title teal-text text-darken-4"
-                  >Newly Created SPL Token Mints</span
-                >
-                <p>
-                  This list updates automatically every 5 seconds, showing
-                  newly discovered mint addresses from the indexer.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- List of minted addresses -->
-        <ul class="collection" id="mintList"></ul>
-      </div>
-    </div>
-
-    <!-- Materialize JS (for optional UI interactions, not strictly required) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-
-    <script>
-      // DOM Element
-      const mintList = document.getElementById('mintList');
-
-      // Fetch newly minted addresses from the server
-      async function fetchMints() {
-        try {
-          const response = await fetch('/api/mints');
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-          }
-          const data = await response.json();
-          // data should be an array of mint addresses
-
-          // Clear the current list
-          mintList.innerHTML = '';
-
-          data.forEach((mintAddr, index) => {
-            // Create a collection item
-            const li = document.createElement('li');
-            li.className = 'collection-item';
-
-            // Format the list item with Materialize styling
-            li.innerHTML = `
-              <span class="mint-item">
-                <strong>Mint #${index + 1}:</strong> ${mintAddr}
-              </span>
-              <br/>
-              <small>Discovered by the indexer</small>
-            `;
-            mintList.appendChild(li);
-          });
-        } catch (err) {
-          console.error('Error fetching mints:', err);
-        }
-      }
-
-      // Automatically refresh the list every 5 seconds
-      setInterval(fetchMints, 5000);
-
-      // Initial fetch on page load
-      fetchMints();
-    </script>
-  </body>
+  <!-- Materialize JS and dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <!-- Custom JS -->
+  <script src="script.js"></script>
+</body>
 </html>
