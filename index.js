@@ -1,10 +1,15 @@
 /**
  * index.js
- * 
+ *
  * A robust Express server that continuously scans the Solana blockchain
  * for newly created SPL token mints by decoding the InitializeMint
- * instruction data. Incorporates a slot lag to ensure blocks are available
- * and includes enhanced logging for better visibility.
+ * instruction data. It handles both LEGACY and VERSIONED transactions.
+ * 
+ * Includes:
+ *  - Slot lag to avoid "Block not available" errors
+ *  - Borsh-based decoding of InitializeMint
+ *  - Persistence of discovered mint addresses in a JSON file
+ *  - Basic logs for debugging
  */
 
 const express = require('express');
@@ -12,6 +17,8 @@ const {
   Connection,
   clusterApiUrl,
   PublicKey,
+  VersionedTransaction,
+  TransactionMessage,
 } = require('@solana/web3.js');
 const borsh = require('borsh');
 const {
@@ -25,8 +32,8 @@ const PORT = 5000;                        // Listen on port 5000
 const HOST = '0.0.0.0';                   // Listen on IP 0.0.0.0
 const SOLANA_CLUSTER = 'devnet';          // 'mainnet-beta' or 'devnet' for testing
 const POLL_INTERVAL_MS = 5000;            // How frequently to poll for new slots (in ms)
-const SLOT_LAG = 2;                        // Number of slots to lag behind to ensure block availability
-const MINTS_FILE = path.join(__dirname, 'mints.json'); // File to persist mints
+const SLOT_LAG = 2;                       // Number of slots to lag behind to ensure block availability
+const MINTS_FILE = path.join(__dirname, 'mints.json'); // File to persist discovered mints
 // ------------------------------------------------
 
 // 1. Create a Solana connection
@@ -65,18 +72,18 @@ const InitializeMintSchema = new Map([
     {
       kind: 'struct',
       fields: [
-        ['instruction', 'u8'], // InitializeMint instruction is 0
+        ['instruction', 'u8'], // 0 => InitializeMint in SPL Token
         ['decimals', 'u8'],
         ['mintAuthority', [32]],
         ['freezeAuthorityOption', 'u8'], // 0 or 1
-        ['freezeAuthority', [32]],        // Present only if freezeAuthorityOption == 1
+        ['freezeAuthority', [32]],       // Only present if freezeAuthorityOption == 1
       ],
     },
   ],
 ]);
 
 /**
- * Manually decode InitializeMint instruction
+ * Manually decode InitializeMint instruction data via Borsh
  */
 function decodeInitializeMintInstruction(instructionData) {
   const buffer = instructionData.data;
@@ -137,121 +144,67 @@ app.listen(PORT, HOST, async () => {
 /**
  * pollNewBlocks:
  * Continuously fetches blocks above the last processed slot,
- * inspects each transaction's instructions, and decodes
- * SPL Token 'InitializeMint' instructions.
+ * inspects each transaction's instructions (both legacy & versioned),
+ * and decodes SPL Token 'InitializeMint' instructions.
  */
 async function pollNewBlocks() {
   while (true) {
     try {
-      // Get the current slot
+      // Current cluster slot
       const currentSlot = await connection.getSlot();
 
-      // Calculate the target slot to process
+      // We'll only process up to (currentSlot - SLOT_LAG) to avoid "Block not available"
       const targetSlot = currentSlot - SLOT_LAG;
 
-      // Ensure we don't process slots beyond the targetSlot
       if (targetSlot <= lastSlot) {
         // No new slots to process yet
-        // Wait and retry in the next poll
-        console.log(`No new slots to process. Current slot: ${currentSlot}, last processed: ${lastSlot}`);
+        console.log(`No new slots to process. currentSlot=${currentSlot}, lastSlot=${lastSlot}`);
       } else {
-        // Process slots from lastSlot + 1 up to targetSlot
+        // Process each slot from (lastSlot + 1) up to targetSlot
         for (let slot = lastSlot + 1; slot <= targetSlot; slot++) {
           try {
-            // Fetch block with FULL transaction details (needed to decode instructions)
+            // Fetch block with FULL transaction details
             const block = await connection.getBlock(slot, {
               transactionDetails: 'full',
-              maxSupportedTransactionVersion: 0, // only legacy TX if possible
+              // Omit maxSupportedTransactionVersion to allow versioned TX to be returned
             });
 
             if (!block) {
-              console.log(`Slot ${slot} has no block data. Skipping...`);
-              continue; // skip if block is null/unavailable
+              console.log(`Slot ${slot} has no block data (null). Skipping...`);
+              continue;
             }
 
             console.log(`Processing slot ${slot} with ${block.transactions.length} transactions`);
 
-            // Loop over each transaction in the block
             for (const tx of block.transactions) {
-              const { transaction, meta } = tx;
+              // Each 'tx' has { transaction, meta }
+              const { transaction } = tx;
               if (!transaction) {
-                console.log(`  Skipping transaction with missing data`);
-                continue;             // skip if no transaction object
-              }
-              if (!transaction.message) {
-                console.log(`  Skipping transaction with missing message`);
-                continue;             // skip if there's no message
+                console.log(`  Skipping missing transaction object`);
+                continue;
               }
 
-              // Optional: if transaction.version is not undefined and > 0, it's versioned
-              if (transaction.version !== undefined && transaction.version > 0) {
-                console.log(`  Skipping versioned transaction ${tx.transaction.signatures[0]}`);
-                continue; // skip versioned transactions in this demo
-              }
-
-              const message = transaction.message;
-              if (!message.accountKeys) {
-                console.log(`  Skipping transaction with missing accountKeys`);
-                continue; // skip if accountKeys is missing
-              }
-
-              // Now we can safely parse each instruction
-              for (const ix of message.instructions) {
-                const programIdIndex = ix.programIdIndex;
-                const programId = message.accountKeys[programIdIndex];
-
-                // If the program is the SPL Token Program
-                if (programId && programId.equals(TOKEN_PROGRAM_ID)) {
-                  console.log(`    Found SPL Token Program instruction`);
-
-                  // Build a TransactionInstruction-like object
-                  const instructionData = {
-                    programId,
-                    keys: ix.accounts.map((accIndex) => {
-                      const pubkey = message.accountKeys[accIndex];
-                      return {
-                        pubkey,
-                        isSigner: message.isAccountSigner(accIndex),
-                        isWritable: message.isAccountWritable(accIndex),
-                      };
-                    }),
-                    data: Buffer.from(ix.data, 'base64'),
-                  };
-
-                  // Try to decode as InitializeMint
-                  try {
-                    const decoded = decodeInitializeMintInstruction(
-                      instructionData
-                    );
-                    // Check if the instruction is indeed InitializeMint
-                    if (decoded.instruction === 0) { // 0 is InitializeMint
-                      const mintPubkey = new PublicKey(decoded.mintAuthority).toBase58();
-                      if (!newMints.has(mintPubkey)) {
-                        newMints.add(mintPubkey);
-                        console.log(`      Successfully decoded InitializeMint for mint: ${mintPubkey}`);
-                        persistMints(); // Persist mints after addition
-                      }
-                    }
-                  } catch (err) {
-                    // decodeInitializeMintInstruction throws if it's not actually InitializeMint
-                    // or if data is malformed; ignore in that case
-                    // Uncomment the line below to see decode errors (optional)
-                    // console.log(`      Failed to decode InitializeMint: ${err.message}`);
-                  }
-                }
+              // If there's a version field, it means versioned
+              if (transaction.version !== undefined && transaction.version >= 0) {
+                // ---------- VERSIONED TRANSACTION PATH ----------
+                decodeVersionedTransaction(tx);
+              } else {
+                // ---------- LEGACY TRANSACTION PATH ----------
+                decodeLegacyTransaction(tx);
               }
             }
 
-            // Update lastSlot to the processed slot
+            // Update lastSlot after fully processing this slot
             lastSlot = slot;
+
           } catch (slotErr) {
             console.error(`Error processing slot ${slot}:`, slotErr);
-            // Decide whether to continue or break based on error type
-            // For now, continue processing other slots
+            // Continue to next slot
             continue;
           }
         }
       }
+
     } catch (err) {
       console.error('Error in pollNewBlocks loop:', err);
     }
@@ -261,7 +214,121 @@ async function pollNewBlocks() {
   }
 }
 
-/** Helper: Sleep for N ms */
+/** 
+ * decodeVersionedTransaction: 
+ * Rebuilds a versioned transaction from the wire format, then 
+ * decompiles it to get instructions + accountKeys in legacy form. 
+ */
+function decodeVersionedTransaction(txInfo) {
+  const { transaction } = txInfo;
+  try {
+    // transaction is a VersionedTransaction instance or similar
+    // but for safety we re-serialize and re-deserialize
+    const wireTx = transaction.serialize();
+    const versionedTx = VersionedTransaction.deserialize(wireTx);
+
+    // Decompile the versioned message to a "legacy-like" format
+    const msg = versionedTx.message;
+    const legacyFmt = TransactionMessage.decompile(msg);
+
+    // We'll get instructions & accountKeys from the decompiled object
+    const instructions = legacyFmt.instructions;
+    const accountKeys = legacyFmt.accountKeys;
+
+    // Now parse each instruction
+    for (const ix of instructions) {
+      if (ix.programId.equals(TOKEN_PROGRAM_ID)) {
+        console.log(`    Found SPL Token Program instruction (versioned TX)`);
+
+        // Build a TransactionInstruction-like object
+        const instructionData = {
+          programId: ix.programId,
+          keys: ix.accounts.map((accIndex) => {
+            const pubkey = accountKeys[accIndex];
+            // We can't easily determine isSigner/isWritable from the decompiled instructions,
+            // but for decoding InitializeMint we only need order & data
+            return {
+              pubkey,
+              isSigner: false,
+              isWritable: false,
+            };
+          }),
+          data: ix.data,
+        };
+
+        try {
+          const decoded = decodeInitializeMintInstruction(instructionData);
+          if (decoded.instruction === 0) { // 0 => InitializeMint
+            // Convert the 32-byte buffer in decoded.mintAuthority to a public key
+            const mintPubkey = new PublicKey(decoded.mintAuthority).toBase58();
+            if (!newMints.has(mintPubkey)) {
+              newMints.add(mintPubkey);
+              console.log(`      Successfully decoded InitializeMint (versioned) for mint: ${mintPubkey}`);
+              persistMints();
+            }
+          }
+        } catch (err) {
+          // Not an InitializeMint or data mismatch
+          // console.log(`      decodeInitializeMintInstruction failed: ${err.message}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.log(`  Error decoding versioned transaction: ${err.message}`);
+  }
+}
+
+/** 
+ * decodeLegacyTransaction:
+ * The old approach: instructions are in transaction.message.instructions
+ * and account keys are in transaction.message.accountKeys
+ */
+function decodeLegacyTransaction(txInfo) {
+  const { transaction } = txInfo;
+  const { message } = transaction;
+  if (!message || !message.accountKeys) {
+    console.log(`  Skipping legacy TX with missing message/accountKeys`);
+    return;
+  }
+
+  for (const ix of message.instructions) {
+    const programIdIndex = ix.programIdIndex;
+    const programId = message.accountKeys[programIdIndex];
+
+    if (programId && programId.equals(TOKEN_PROGRAM_ID)) {
+      console.log(`    Found SPL Token Program instruction (legacy TX)`);
+      const instructionData = {
+        programId,
+        keys: ix.accounts.map((accIndex) => {
+          const pubkey = message.accountKeys[accIndex];
+          return {
+            pubkey,
+            isSigner: message.isAccountSigner(accIndex),
+            isWritable: message.isAccountWritable(accIndex),
+          };
+        }),
+        data: Buffer.from(ix.data, 'base64'),
+      };
+
+      try {
+        const decoded = decodeInitializeMintInstruction(instructionData);
+        if (decoded.instruction === 0) { // InitializeMint
+          const mintPubkey = new PublicKey(decoded.mintAuthority).toBase58();
+          if (!newMints.has(mintPubkey)) {
+            newMints.add(mintPubkey);
+            console.log(`      Successfully decoded InitializeMint (legacy) for mint: ${mintPubkey}`);
+            persistMints();
+          }
+        }
+      } catch (err) {
+        // Not an InitializeMint or data mismatch
+        // console.log(`      decodeInitializeMintInstruction failed: ${err.message}`);
+      }
+    }
+  }
+}
+
+/** Sleep helper */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
