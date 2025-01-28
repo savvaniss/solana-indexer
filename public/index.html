@@ -6,6 +6,10 @@
     <title>Solana Token Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Solana Web3.js Library -->
+    <script src="https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js"></script>
+    
     <style>
         :root {
             --primary: #26A69A;
@@ -14,6 +18,7 @@
             --surface: #FFFFFF;
             --on-surface: #424242;
             --divider: #E0E0E0;
+            --error: #FF5252;
         }
 
         body {
@@ -38,6 +43,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
         }
 
         .sort-controls {
@@ -46,13 +53,41 @@
             align-items: center;
         }
 
-        .token-list {
+        .wallet-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #connectButton {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--primary);
+            color: white;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        #connectButton:hover {
+            background-color: var(--secondary);
+        }
+
+        #walletAddress {
+            font-family: 'Roboto Mono', monospace;
+            color: var(--primary);
+            font-size: 0.95em;
+        }
+
+        .token-list, .wallet-tokens {
             display: grid;
             gap: 16px;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            margin-bottom: 24px;
         }
 
-        .token-card {
+        .token-card, .wallet-token-card {
             background: var(--surface);
             padding: 20px;
             border-radius: 12px;
@@ -61,12 +96,12 @@
             border-left: 4px solid var(--primary);
         }
 
-        .token-card:hover {
+        .token-card:hover, .wallet-token-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        .mint-address {
+        .mint-address, .token-mint-address {
             font-family: 'Roboto Mono', monospace;
             font-size: 0.9em;
             color: var(--primary);
@@ -88,24 +123,60 @@
             word-break: break-all;
         }
 
-        select {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--divider);
+        .wallet-tokens-section {
             background: var(--surface);
-            font-family: inherit;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .wallet-tokens-section h2 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 1.5em;
             color: var(--on-surface);
         }
 
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--divider);
+        }
+
+        th {
+            background-color: var(--secondary);
+            color: white;
+            font-weight: 500;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .error-message {
+            color: var(--error);
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+
         @media (max-width: 600px) {
-            .token-list {
+            .token-list, .wallet-tokens {
                 grid-template-columns: 1fr;
             }
-            
+
             .header {
                 flex-direction: column;
-                gap: 16px;
                 align-items: flex-start;
+            }
+
+            .wallet-tokens-section {
+                padding: 16px;
             }
         }
     </style>
@@ -118,6 +189,7 @@
                 <p>Newly created tokens appear here in real-time</p>
             </div>
             <div class="sort-controls">
+                <label for="sortSelect">Sort:</label>
                 <select id="sortSelect">
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
@@ -125,17 +197,38 @@
                 </select>
             </div>
             <!-- Connect Wallet Button and Wallet Address -->
-            <div>
-                <button id="connectButton" style="padding: 8px 16px; border: none; border-radius: 8px; background-color: var(--primary); color: white; cursor: pointer;">
-                    Connect Wallet
-                </button>
-                <span id="walletAddress" style="margin-left: 16px; font-family: 'Roboto Mono', monospace; color: var(--primary);"></span>
+            <div class="wallet-section">
+                <button id="connectButton">Connect Wallet</button>
+                <span id="walletAddress"></span>
             </div>
         </div>
-        <div class="token-list" id="tokenList"></div>
+        
+        <!-- Token List Section -->
+        <div class="token-list" id="tokenList">
+            <!-- Dynamically populated token cards -->
+        </div>
+        
+        <!-- Wallet Tokens Section -->
+        <div class="wallet-tokens-section" id="walletTokensSection" style="display: none;">
+            <h2>Your Wallet's Token Holdings</h2>
+            <table id="walletTokensTable">
+                <thead>
+                    <tr>
+                        <th>Token Name</th>
+                        <th>Mint Address</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dynamically populated wallet token rows -->
+                </tbody>
+            </table>
+            <div id="walletError" class="error-message"></div>
+        </div>
     </div>
 
     <script>
+        // Existing JavaScript Code for Token Monitoring
         let currentSort = 'newest';
 
         function updateTokenList(tokens) {
@@ -190,6 +283,12 @@
         // Phantom Wallet Integration
         const connectButton = document.getElementById('connectButton');
         const walletAddressSpan = document.getElementById('walletAddress');
+        const walletTokensSection = document.getElementById('walletTokensSection');
+        const walletTokensTableBody = document.querySelector('#walletTokensTable tbody');
+        const walletErrorDiv = document.getElementById('walletError');
+
+        // Solana Connection (Devnet/Mainnet)
+        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
 
         // Check if Phantom is installed
         const isPhantomInstalled = () => {
@@ -201,6 +300,12 @@
         const displayWalletAddress = (address) => {
             walletAddressSpan.textContent = `Connected: ${address.slice(0, 4)}...${address.slice(-4)}`;
             connectButton.textContent = 'Disconnect Wallet';
+        };
+
+        // Clear wallet address
+        const clearWalletAddress = () => {
+            walletAddressSpan.textContent = '';
+            connectButton.textContent = 'Connect Wallet';
         };
 
         // Connect to Phantom Wallet
@@ -216,15 +321,26 @@
                 const response = await solana.connect();
                 console.log('Connected with Public Key:', response.publicKey.toString());
                 displayWalletAddress(response.publicKey.toString());
-
-                // Optional: Listen for account changes
+                walletTokensSection.style.display = 'block';
+                fetchWalletTokens(response.publicKey);
+                
+                // Listen for account changes
                 solana.on('accountChanged', (newPublicKey) => {
                     if (newPublicKey) {
                         displayWalletAddress(newPublicKey.toString());
+                        fetchWalletTokens(newPublicKey);
                     } else {
-                        walletAddressSpan.textContent = '';
-                        connectButton.textContent = 'Connect Wallet';
+                        clearWalletAddress();
+                        walletTokensSection.style.display = 'none';
+                        walletTokensTableBody.innerHTML = '';
                     }
+                });
+
+                // Listen for disconnect event
+                solana.on('disconnect', () => {
+                    clearWalletAddress();
+                    walletTokensSection.style.display = 'none';
+                    walletTokensTableBody.innerHTML = '';
                 });
 
             } catch (err) {
@@ -232,17 +348,18 @@
             }
         };
 
-        // Disconnect Wallet (Optional)
+        // Disconnect Wallet (Optional UI Handling)
         const disconnectWallet = () => {
             const { solana } = window;
             if (solana && solana.isConnected) {
                 solana.disconnect();
-                walletAddressSpan.textContent = '';
-                connectButton.textContent = 'Connect Wallet';
+                clearWalletAddress();
+                walletTokensSection.style.display = 'none';
+                walletTokensTableBody.innerHTML = '';
             }
         };
 
-        // Handle button click
+        // Handle Connect/Disconnect Button Click
         connectButton.addEventListener('click', async () => {
             if (isPhantomInstalled()) {
                 if (window.solana.isConnected) {
@@ -255,16 +372,83 @@
             }
         });
 
-        // Initial check for wallet connection
+        // Initial check for wallet connection on page load
         window.addEventListener('load', async () => {
             if (isPhantomInstalled()) {
                 const { solana } = window;
                 if (solana && solana.isConnected) {
                     displayWalletAddress(solana.publicKey.toString());
-                    connectButton.textContent = 'Disconnect Wallet';
+                    walletTokensSection.style.display = 'block';
+                    fetchWalletTokens(solana.publicKey);
                 }
             }
         });
+
+        // Function to Fetch and Display Wallet Tokens
+        async function fetchWalletTokens(publicKey) {
+            walletErrorDiv.textContent = '';
+            walletTokensTableBody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+
+            try {
+                // Fetch all token accounts for the public key
+                const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+                    publicKey,
+                    {
+                        programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+                    }
+                );
+
+                if (tokenAccounts.value.length === 0) {
+                    walletTokensTableBody.innerHTML = '<tr><td colspan="3">No token holdings found.</td></tr>';
+                    return;
+                }
+
+                // Clear the table body
+                walletTokensTableBody.innerHTML = '';
+
+                // Iterate through each token account and display details
+                for (const accountInfo of tokenAccounts.value) {
+                    const accountData = accountInfo.account.data.parsed.info;
+                    const mintAddress = accountData.mint;
+                    const amount = accountData.tokenAmount.uiAmount;
+                    const decimals = accountData.tokenAmount.decimals;
+
+                    // Optionally, fetch token name from a token list (not implemented here)
+                    // For simplicity, we'll display the mint address
+                    const tokenName = await fetchTokenName(mintAddress) || 'Unknown Token';
+
+                    const row = `
+                        <tr>
+                            <td>${tokenName}</td>
+                            <td>${mintAddress}</td>
+                            <td>${amount}</td>
+                        </tr>
+                    `;
+                    walletTokensTableBody.insertAdjacentHTML('beforeend', row);
+                }
+
+            } catch (error) {
+                console.error('Error fetching wallet tokens:', error);
+                walletErrorDiv.textContent = 'Failed to fetch wallet tokens. Please try again.';
+                walletTokensTableBody.innerHTML = '';
+            }
+        }
+
+        // Function to Fetch Token Name from Token List (Optional)
+        async function fetchTokenName(mintAddress) {
+            try {
+                // Fetch token list from Solana Labs (publicly available)
+                const tokenListUrl = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
+                const response = await fetch(tokenListUrl);
+                const data = await response.json();
+                const token = data.tokens.find(t => t.address === mintAddress);
+                return token ? token.name : null;
+            } catch (error) {
+                console.error('Error fetching token list:', error);
+                return null;
+            }
+        }
+
     </script>
 </body>
 </html>
