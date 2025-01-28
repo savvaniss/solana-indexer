@@ -8,21 +8,16 @@
         font-family: Arial, sans-serif;
         margin: 20px;
       }
-      h1 {
-        color: #444;
-      }
       .highlight {
-        color: #0A7F0A; /* green-ish */
+        color: #0A7F0A;
         font-weight: bold;
       }
     </style>
   </head>
   <body>
-    <h1>Solana New Token Mint Indexer</h1>
-    <p>
-      This page displays newly created SPL token mint addresses (found by our Node.js indexer).
-    </p>
-    
+    <h1>Solana Token Mint Indexer (Direct Instruction Decode)</h1>
+    <p>This page displays newly created SPL token mint addresses.</p>
+
     <button id="refreshBtn">Refresh Now</button>
     <ul id="mintList"></ul>
 
@@ -30,12 +25,10 @@
       const refreshBtn = document.getElementById('refreshBtn');
       const mintList = document.getElementById('mintList');
 
-      // Fetch new minted addresses from the backend and display them
       async function fetchMints() {
         try {
           const res = await fetch('/api/mints');
           const data = await res.json();
-          // Clear existing list
           mintList.innerHTML = '';
           data.forEach(mintAddr => {
             const li = document.createElement('li');
@@ -47,14 +40,9 @@
         }
       }
 
-      // Refresh manually
       refreshBtn.addEventListener('click', fetchMints);
-
-      // Also auto-refresh every 10 seconds
-      setInterval(fetchMints, 10_000);
-
-      // Initial load
-      fetchMints();
+      setInterval(fetchMints, 10000); // auto-refresh every 10 seconds
+      fetchMints(); // initial load
     </script>
   </body>
 </html>

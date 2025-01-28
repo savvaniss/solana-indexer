@@ -1,38 +1,46 @@
 /**
  * index.js
- * 
+ *
  * A simple Express server that continuously scans the Solana blockchain
- * for newly created SPL token mints. It stores discovered mint addresses in-memory
- * and serves them over a basic REST API. 
+ * for newly created SPL token mints by decoding the InitializeMint instruction
+ * directly (rather than searching logs).
  */
 const express = require('express');
-const { Connection, clusterApiUrl } = require('@solana/web3.js');
+const {
+  Connection,
+  clusterApiUrl,
+  PublicKey
+} = require('@solana/web3.js');
+
+const {
+  TOKEN_PROGRAM_ID,
+  decodeInitializeMintInstruction
+} = require('@solana/spl-token');
 
 // -------------------- CONFIG --------------------
 const PORT = process.env.PORT || 3000;
 const SOLANA_CLUSTER = 'mainnet-beta'; // or 'devnet', 'testnet'
-const POLL_INTERVAL_MS = 5000;         // How frequently to poll for new slots/blocks
+const POLL_INTERVAL_MS = 5000;         // How frequently to poll for new slots
 // ------------------------------------------------
 
-// 1. Create a Solana connection.
+// 1. Create a Solana connection
 const connection = new Connection(clusterApiUrl(SOLANA_CLUSTER), 'confirmed');
 
-// 2. Variables to track the last processed slot and newly created mints in memory.
+// 2. Variables to track the last processed slot and discovered mints in memory
 let lastSlot = 0;
-const newMints = new Set(); // Store unique mint addresses (avoid duplicates)
+const newMints = new Set(); // store unique mint addresses
 
-// 3. Start Express server.
+// 3. Create an Express server
 const app = express();
 
-// Serve our static front-end from /public
+// Serve static front-end from /public
 app.use(express.static('public'));
 
 /**
  * GET /api/mints
- * Returns an array of discovered mint addresses (newly created SPL tokens).
+ * Returns an array of discovered mint addresses
  */
 app.get('/api/mints', (req, res) => {
-  // Convert Set to array before sending
   return res.json(Array.from(newMints));
 });
 
@@ -40,7 +48,7 @@ app.get('/api/mints', (req, res) => {
 app.listen(PORT, async () => {
   console.log(`\nSolana Mint Indexer is running on port ${PORT}...`);
 
-  // Initialize lastSlot to current slot at startup
+  // Initialize lastSlot to current slot
   lastSlot = await connection.getSlot();
   console.log(`Starting block scanning from slot ${lastSlot}`);
 
@@ -50,50 +58,80 @@ app.listen(PORT, async () => {
 
 /**
  * pollNewBlocks:
- * Continuously checks for new slots, retrieves block data, and searches
- * for "InitializeMint" instructions in transaction logs.
+ * Continuously fetches blocks above the last processed slot,
+ * inspects each transaction's instructions, and decodes
+ * SPL Token "InitializeMint" instructions.
  */
 async function pollNewBlocks() {
   while (true) {
     try {
       // Get the current slot
       const currentSlot = await connection.getSlot();
-      
-      // Scan any blocks that appeared since lastSlot
+
+      // Process any new slots that have appeared
       for (let slot = lastSlot + 1; slot <= currentSlot; slot++) {
+        // Fetch block with FULL transaction details (so we can decode instructions)
         const block = await connection.getBlock(slot, {
-          maxSupportedTransactionVersion: 0, // Ensures we get legacy tx details
+          maxSupportedTransactionVersion: 0,
+          transactionDetails: 'full', // necessary to see instructions
         });
-        if (!block) continue; // If block is null, skip (sometimes can happen)
+        if (!block) continue; // if block is null or unavailable, skip
 
-        // Each block has an array of transactions
+        // Loop over each transaction in the block
         for (const tx of block.transactions) {
-          // We'll parse logs for an "InitializeMint" instruction
-          const logs = tx.meta?.logMessages || [];
-          const foundInitialize = logs.some(line => line.includes("InitializeMint"));
-          if (!foundInitialize) continue;
+          const { transaction, meta } = tx;
+          if (!transaction) continue;
 
-          // If we see "InitializeMint", attempt to extract the Mint address from the logs
-          // Typically we might see lines like "Program log: Mint: <publicKey>"
-          const mintLogLine = logs.find(line => line.includes("Mint: "));
-          if (mintLogLine) {
-            // Example: "Program log: Mint: 4Z8QX...somePublicKey"
-            const parts = mintLogLine.split("Mint: ");
-            if (parts.length === 2) {
-              const mintAddr = parts[1].trim();
-              // Store it in our Set
-              newMints.add(mintAddr);
-              console.log(`Discovered new mint at slot ${slot}: ${mintAddr}`);
+          const message = transaction.message;
+          const accountKeys = message.accountKeys.map((k) => k.toBase58());
+
+          // For each compiled instruction, check if it's for the TOKEN_PROGRAM_ID
+          for (const ix of message.instructions) {
+            const programIdIndex = ix.programIdIndex;
+            const programId = message.accountKeys[programIdIndex];
+
+            // Check if it matches the SPL Token program
+            if (programId.equals(TOKEN_PROGRAM_ID)) {
+              // Build a TransactionInstruction-like object for decoding
+              // We need to pass:
+              //  - programId: The actual PublicKey
+              //  - keys: each account in the instruction
+              //  - data: the raw instruction data (base64 -> Buffer)
+              const instructionData = {
+                programId,
+                keys: ix.accounts.map((accIndex) => {
+                  const pubkey = message.accountKeys[accIndex];
+                  // We can check which accounts are signers/writable from the message
+                  // but for decoding InitializeMint, only the order matters
+                  return {
+                    pubkey,
+                    isSigner: message.isAccountSigner(accIndex),
+                    isWritable: message.isAccountWritable(accIndex),
+                  };
+                }),
+                data: Buffer.from(ix.data, 'base64'),
+              };
+
+              // Attempt to decode as InitializeMint
+              try {
+                const decoded = decodeInitializeMintInstruction(instructionData, programId);
+                // If we get here, it's definitely an InitializeMint instruction
+
+                const mintAddress = decoded.keys.mint.pubkey.toBase58();
+                newMints.add(mintAddress);
+
+                console.log(`Discovered new mint at slot ${slot}: ${mintAddress}`);
+              } catch (err) {
+                // decodeInitializeMintInstruction will throw if this instruction
+                // isn't actually "InitializeMint", or if data is malformed.
+                // We ignore that, because not every Token Program instruction is initMint.
+              }
             }
-          } else {
-            // Possibly parse deeper or fetch transaction details if logs are incomplete
-            // For now, just note that we found an InitializeMint but didn't parse the address
-            console.log(`InitializeMint found in slot ${slot} but no 'Mint:' log line. Tx signature: ${tx.transaction.signatures[0]}`);
           }
         }
       }
 
-      // Update lastSlot to current
+      // Update lastSlot
       lastSlot = currentSlot;
     } catch (err) {
       console.error('Error in pollNewBlocks loop:', err);
@@ -106,5 +144,5 @@ async function pollNewBlocks() {
 
 /** Helper: Sleep for N ms */
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
