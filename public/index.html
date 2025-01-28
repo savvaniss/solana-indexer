@@ -1,46 +1,67 @@
-<!-- index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solana Token Tracker</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Materialize CSS -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+    />
+    
+    <!-- Google Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     
     <!-- Solana Web3.js Library -->
     <script src="https://unpkg.com/@solana/web3.js@1.73.0/lib/index.iife.min.js"></script>
     
     <style>
+        /* ========== COLOR VARIABLES ========== */
         :root {
-            --primary: #26A69A;
-            --secondary: #80CBC4;
-            --background: #F5F5F5;
-            --surface: #FFFFFF;
-            --on-surface: #424242;
-            --divider: #E0E0E0;
-            --error: #FF5252;
+            --primary: #1565c0;       /* Blue */
+            --secondary: #ff9800;     /* Orange */
+            --background: #f5f5f5;    /* Light Gray */
+            --surface: #ffffff;       /* White */
+            --on-surface: #333333;    /* Dark Gray */
+            --divider: #e0e0e0;       /* Light Gray */
+            --error: #9c2a2a;         /* Dark Red */
+            --success: #2d572c;       /* Dark Green */
+            --warning: #8a6d3b;       /* Brownish Yellow */
         }
 
+        /* ========== BASE STYLES ========== */
         body {
-            font-family: 'Inter', sans-serif;
+            background-color: var(--background); 
+            color: var(--on-surface);           
+            font-family: "Roboto", sans-serif;
             margin: 0;
             padding: 24px;
-            background-color: var(--background);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
             color: var(--on-surface);
+            margin-top: 0.5rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            line-height: 1.6;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 0 15px;
         }
 
+        /* ========== HEADER SECTION ========== */
         .header {
             background: var(--surface);
             padding: 24px;
             border-radius: 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
@@ -64,16 +85,30 @@
         #connectButton {
             padding: 8px 16px;
             border: none;
-            border-radius: 8px;
-            background-color: var(--primary);
-            color: white;
+            border-radius: 30px;
+            background-color: var(--secondary);
+            color: var(--on-surface) !important;
             cursor: pointer;
             font-size: 1em;
             transition: background-color 0.3s ease;
+            box-shadow:
+                5px 5px 10px rgba(0,0,0,0.2),
+                -5px -5px 10px rgba(255,255,255,0.5);
         }
 
         #connectButton:hover {
-            background-color: var(--secondary);
+            background-color: #f0f0f0;
+            transform: translateY(-2px);
+            box-shadow:
+                5px 5px 10px rgba(0,0,0,0.25),
+                -5px -5px 10px rgba(255,255,255,0.7);
+        }
+
+        #connectButton:active {
+            transform: translateY(1px);
+            box-shadow:
+                2px 2px 6px rgba(0,0,0,0.25),
+                -2px -2px 6px rgba(255,255,255,0.5);
         }
 
         #walletAddress {
@@ -83,6 +118,7 @@
             word-break: break-all; /* Ensure long addresses wrap */
         }
 
+        /* ========== TOKEN LIST & WALLET TOKENS ========== */
         .token-list, .wallet-tokens {
             display: grid;
             gap: 16px;
@@ -122,6 +158,7 @@
             text-decoration: underline;
         }
 
+        /* WALLET TOKENS SECTION */
         .wallet-tokens-section {
             background: var(--surface);
             padding: 24px;
@@ -164,6 +201,7 @@
             font-size: 0.9em;
         }
 
+        /* ========== RESPONSIVE DESIGN ========== */
         @media (max-width: 600px) {
             .token-list, .wallet-tokens {
                 grid-template-columns: 1fr;
@@ -182,6 +220,7 @@
 </head>
 <body>
     <div class="container">
+        <!-- HEADER SECTION -->
         <div class="header">
             <div>
                 <h1>🌱 Solana Devnet Token Tracker</h1>
@@ -203,12 +242,12 @@
             </div>
         </div>
         
-        <!-- Token List Section -->
+        <!-- TOKEN LIST SECTION -->
         <div class="token-list" id="tokenList">
             <!-- Dynamically populated token cards -->
         </div>
         
-        <!-- Wallet Tokens Section -->
+        <!-- WALLET TOKENS SECTION -->
         <div class="wallet-tokens-section" id="walletTokensSection" style="display: none;">
             <h2>Your Wallet's Token Holdings</h2>
             <table id="walletTokensTable">
@@ -514,5 +553,18 @@
         }
 
     </script>
+
+    <!-- Initialize Materialize Components -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize any Materialize components if needed in the future
+            // Currently, there are no Materialize JS components used
+        });
+    </script>
+    
+    <!-- Materialize JS -->
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"
+    ></script>
 </body>
 </html>
