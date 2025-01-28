@@ -9,16 +9,15 @@ const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 let newTokens = [];
 
 async function monitorTokenCreations() {
-    console.log('Starting token monitoring...');
-    
-    // Method 1: Logs subscription
+    console.log('Starting enhanced token monitoring...');
+
+    // Method 1: Filtered logs subscription
     const logSubscription = connection.onLogs(
         TOKEN_PROGRAM_ID,
         async ({ logs, signature }) => {
             try {
-                console.log('Received logs:', logs);
                 if (logs.some(log => log.includes('initializeMint'))) {
-                    console.log('Found initializeMint in logs');
+                    console.log('Potential token creation detected:', signature);
                     const tx = await connection.getParsedTransaction(signature, {
                         commitment: 'confirmed',
                         maxSupportedTransactionVersion: 0
@@ -37,50 +36,62 @@ async function monitorTokenCreations() {
                             decimals: initializeIx.parsed.info.decimals
                         };
                         newTokens.unshift(tokenInfo);
-                        console.log('New token detected via logs:', tokenInfo);
+                        console.log('Confirmed new token:', tokenInfo);
                     }
                 }
             } catch (error) {
-                console.error('Log processing error:', error);
+                console.error('Log processing error:', error.message);
             }
         },
         'confirmed'
     );
 
-    // Method 2: Poll recent transactions
+    // Method 2: Version-aware transaction polling
     async function pollTransactions() {
         try {
-            const signatures = await connection.getSignaturesForAddress(TOKEN_PROGRAM_ID);
+            const signatures = await connection.getSignaturesForAddress(TOKEN_PROGRAM_ID, {
+                limit: 10,
+                commitment: 'confirmed'
+            });
+            
             for (const { signature } of signatures) {
                 if (!newTokens.some(t => t.signature === signature)) {
-                    const tx = await connection.getParsedTransaction(signature);
-                    const initializeIx = tx.transaction.message.instructions.find(ix => 
-                        ix.programId.equals(TOKEN_PROGRAM_ID) &&
-                        ix.parsed?.type === 'initializeMint'
-                    );
-                    
-                    if (initializeIx) {
-                        const tokenInfo = {
-                            signature,
-                            mintAddress: initializeIx.parsed.info.mint,
-                            timestamp: new Date(tx.blockTime * 1000).toLocaleString(),
-                            decimals: initializeIx.parsed.info.decimals
-                        };
-                        newTokens.unshift(tokenInfo);
-                        console.log('Historical token found:', tokenInfo);
+                    try {
+                        const tx = await connection.getParsedTransaction(signature, {
+                            maxSupportedTransactionVersion: 0,
+                            commitment: 'confirmed'
+                        });
+
+                        const initializeIx = tx.transaction.message.instructions.find(ix => 
+                            ix.programId.equals(TOKEN_PROGRAM_ID) &&
+                            ix.parsed?.type === 'initializeMint'
+                        );
+                        
+                        if (initializeIx) {
+                            const tokenInfo = {
+                                signature,
+                                mintAddress: initializeIx.parsed.info.mint,
+                                timestamp: new Date(tx.blockTime * 1000).toLocaleString(),
+                                decimals: initializeIx.parsed.info.decimals
+                            };
+                            newTokens.unshift(tokenInfo);
+                            console.log('Historical token found:', tokenInfo);
+                        }
+                    } catch (error) {
+                        console.error('Transaction processing error:', error.message);
                     }
                 }
             }
         } catch (error) {
-            console.error('Polling error:', error);
+            console.error('Polling error:', error.message);
         }
     }
 
     // Initial poll and periodic checks
     await pollTransactions();
-    setInterval(pollTransactions, 30000);
+    setInterval(pollTransactions, 15000);
 
-    console.log('Log subscription ID:', logSubscription);
+    console.log('Monitoring initialized with subscription ID:', logSubscription);
 }
 
 monitorTokenCreations();
