@@ -1,3 +1,5 @@
+<!-- index.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,14 +83,14 @@
             word-break: break-all; /* Ensure long addresses wrap */
         }
 
-        .token-list {
+        .token-list, .wallet-tokens {
             display: grid;
             gap: 16px;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             margin-bottom: 24px;
         }
 
-        .token-card {
+        .token-card, .wallet-token-card {
             background: var(--surface);
             padding: 20px;
             border-radius: 12px;
@@ -100,7 +102,7 @@
             gap: 8px; /* Space between elements */
         }
 
-        .token-card:hover {
+        .token-card:hover, .wallet-token-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
@@ -118,22 +120,6 @@
 
         .tx-signature a:hover {
             text-decoration: underline;
-        }
-
-        .pagination {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .pagination button {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            background: var(--primary);
-            color: white;
-            cursor: pointer;
         }
 
         .wallet-tokens-section {
@@ -179,7 +165,7 @@
         }
 
         @media (max-width: 600px) {
-            .token-list {
+            .token-list, .wallet-tokens {
                 grid-template-columns: 1fr;
             }
 
@@ -216,13 +202,6 @@
                 <span id="walletAddress"></span>
             </div>
         </div>
-
-        <!-- Pagination Controls -->
-        <div class="pagination" id="paginationControls">
-            <button id="prevPage">&laquo; Prev</button>
-            <span id="pageInfo"></span>
-            <button id="nextPage">Next &raquo;</button>
-        </div>
         
         <!-- Token List Section -->
         <div class="token-list" id="tokenList">
@@ -249,37 +228,36 @@
     </div>
 
     <script>
-        // -----------------------------------
-        // PAGINATION + SORT FOR ALL TOKENS
-        // -----------------------------------
-        let currentPage = 1;
-        let currentSort = 'newest';
-        const pageSize = 6; // or 10, or any other default
+        // JavaScript Code for Enhanced Token Tracker
 
-        // Grab references to DOM elements
-        const tokenListEl = document.getElementById('tokenList');
-        const sortSelectEl = document.getElementById('sortSelect');
-        const prevPageBtn = document.getElementById('prevPage');
-        const nextPageBtn = document.getElementById('nextPage');
-        const pageInfoEl = document.getElementById('pageInfo');
+        let currentSort = 'newest';
+        let displayedSignatures = new Set(); // To track displayed tokens
 
         /**
-         * Fetch tokens from the backend with pagination & sorting
+         * Fetch tokens from the backend and update the token list
          */
         async function fetchTokens() {
             try {
-                // Build query string with page, limit, and sort
-                const query = `?page=${currentPage}&limit=${pageSize}&sort=${currentSort}`;
-                const response = await fetch('/tokens' + query);
-                const data = await response.json();
+                const response = await fetch('/tokens');
+                const tokens = await response.json();
+                updateTokenList(tokens);
+            } catch (error) {
+                console.error('Error fetching tokens:', error);
+            }
+        }
 
-                if (!data.tokens) return;
-                
-                // Clear current display
-                tokenListEl.innerHTML = '';
+        /**
+         * Update the token list in the DOM with additional information
+         * @param {Array} tokens - Array of token objects
+         */
+        function updateTokenList(tokens) {
+            const container = document.getElementById('tokenList');
+            const sortedTokens = sortTokens([...tokens]);
 
-                // Render the new tokens
-                data.tokens.forEach(token => {
+            sortedTokens.forEach(token => {
+                if (!displayedSignatures.has(token.signature)) {
+                    displayedSignatures.add(token.signature);
+
                     const tokenCard = document.createElement('div');
                     tokenCard.className = 'token-card';
                     tokenCard.innerHTML = `
@@ -297,51 +275,54 @@
                         <div class="mint-authority">Mint Authority: ${token.mintAuthority}</div>
                         <div class="freeze-authority">Freeze Authority: ${token.freezeAuthority}</div>
                     `;
-                    tokenListEl.appendChild(tokenCard);
-                });
+                    container.prepend(tokenCard); // Add new tokens to the top
+                }
+            });
+        }
 
-                // Update pagination display
-                pageInfoEl.textContent = `Page ${data.page} of ${Math.ceil(data.total / data.pageSize)}`;
-
-                // Handle enabling/disabling of prev/next buttons
-                // Example corner case: if on page 1, disable prev
-                prevPageBtn.disabled = (data.page <= 1);
-                // if on last page, disable next
-                const totalPages = Math.ceil(data.total / data.pageSize);
-                nextPageBtn.disabled = (data.page >= totalPages);
-
-            } catch (error) {
-                console.error('Error fetching tokens:', error);
+        /**
+         * Sort tokens based on the selected criteria
+         * @param {Array} tokens - Array of token objects
+         * @returns {Array} - Sorted array of token objects
+         */
+        function sortTokens(tokens) {
+            switch(currentSort) {
+                case 'oldest':
+                    return tokens.sort((a, b) => 
+                        new Date(a.timestamp) - new Date(b.timestamp));
+                case 'alphabetical':
+                    return tokens.sort((a, b) => 
+                        a.mintAddress.localeCompare(b.mintAddress));
+                case 'supply':
+                    return tokens.sort((a, b) => 
+                        parseInt(b.totalSupply) - parseInt(a.totalSupply));
+                default: // newest
+                    return tokens.sort((a, b) => 
+                        new Date(b.timestamp) - new Date(a.timestamp));
             }
         }
 
-        // Event: change sort
-        sortSelectEl.addEventListener('change', (e) => {
+        /**
+         * Handle sort selection changes
+         */
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
             currentSort = e.target.value;
-            currentPage = 1; // reset to page 1 whenever sort changes
+            // Clear current display and reset tracking
+            const container = document.getElementById('tokenList');
+            container.innerHTML = '';
+            displayedSignatures.clear();
             fetchTokens();
         });
 
-        // Event: previous page
-        prevPageBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                fetchTokens();
-            }
-        });
-
-        // Event: next page
-        nextPageBtn.addEventListener('click', () => {
-            currentPage++;
-            fetchTokens();
-        });
-
-        // Initial fetch on page load
+        /**
+         * Initial fetch every 2 seconds
+         */
+        setInterval(fetchTokens, 2000);
         fetchTokens();
 
-        // -----------------------------------
-        // PHANTOM WALLET INTEGRATION
-        // -----------------------------------
+        /**
+         * Phantom Wallet Integration
+         */
         const connectButton = document.getElementById('connectButton');
         const walletAddressSpan = document.getElementById('walletAddress');
         const walletTokensSection = document.getElementById('walletTokensSection');
@@ -351,25 +332,35 @@
         // Solana Connection (Devnet)
         const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
 
-        // Check if Phantom is installed
+        /**
+         * Check if Phantom is installed
+         * @returns {boolean}
+         */
         const isPhantomInstalled = () => {
             const { solana } = window;
             return solana && solana.isPhantom;
         };
 
-        // Display wallet address in the UI
+        /**
+         * Display wallet address in the UI
+         * @param {string} address - Public key of the wallet
+         */
         const displayWalletAddress = (address) => {
             walletAddressSpan.textContent = `Connected: ${address.slice(0, 4)}...${address.slice(-4)}`;
             connectButton.textContent = 'Disconnect Wallet';
         };
 
-        // Clear wallet address from the UI
+        /**
+         * Clear wallet address from the UI
+         */
         const clearWalletAddress = () => {
             walletAddressSpan.textContent = '';
             connectButton.textContent = 'Connect Wallet';
         };
 
-        // Connect to Phantom Wallet
+        /**
+         * Connect to Phantom Wallet
+         */
         const connectWallet = async () => {
             try {
                 const { solana } = window;
@@ -409,7 +400,9 @@
             }
         };
 
-        // Disconnect Wallet
+        /**
+         * Disconnect Wallet (Optional UI Handling)
+         */
         const disconnectWallet = () => {
             const { solana } = window;
             if (solana && solana.isConnected) {
@@ -420,7 +413,9 @@
             }
         };
 
-        // Connect/Disconnect Button Click
+        /**
+         * Handle Connect/Disconnect Button Click
+         */
         connectButton.addEventListener('click', async () => {
             if (isPhantomInstalled()) {
                 if (window.solana.isConnected) {
@@ -433,7 +428,9 @@
             }
         });
 
-        // Initial check for wallet connection on page load
+        /**
+         * Initial check for wallet connection on page load
+         */
         window.addEventListener('load', async () => {
             if (isPhantomInstalled()) {
                 const { solana } = window;
@@ -447,9 +444,7 @@
 
         /**
          * Function to Fetch and Display Wallet Tokens
-         * This is a direct call to the blockchain via web3, so the result set
-         * is typically small. If you'd like pagination for user tokens, replicate
-         * the same pattern: store them and fetch them in slices from your server.
+         * @param {PublicKey} publicKey - Public key of the connected wallet
          */
         async function fetchWalletTokens(publicKey) {
             walletErrorDiv.textContent = '';
@@ -472,14 +467,14 @@
                 // Clear the table body
                 walletTokensTableBody.innerHTML = '';
 
-                // Iterate through each token account
+                // Iterate through each token account and display details
                 for (const accountInfo of tokenAccounts.value) {
                     const accountData = accountInfo.account.data.parsed.info;
                     const mintAddress = accountData.mint;
                     const amount = accountData.tokenAmount.uiAmount;
                     const decimals = accountData.tokenAmount.decimals;
 
-                    // Attempt to fetch token details from the Solana token list
+                    // Fetch token name and symbol from token list
                     const tokenDetails = await fetchTokenDetails(mintAddress) || { name: 'Unknown Token', symbol: '---' };
 
                     const row = `
@@ -499,9 +494,14 @@
             }
         }
 
-        // Utility to fetch token details from the solana-labs token list
+        /**
+         * Function to Fetch Token Details (Name and Symbol) from Token List
+         * @param {string} mintAddress - Mint address of the token
+         * @returns {Object|null} - Object containing name and symbol or null if not found
+         */
         async function fetchTokenDetails(mintAddress) {
             try {
+                // Fetch token list from Solana Labs (publicly available)
                 const tokenListUrl = 'https://raw.githubusercontent.com/solana-labs/token-list/main/src/tokens/solana.tokenlist.json';
                 const response = await fetch(tokenListUrl);
                 const data = await response.json();
@@ -512,6 +512,7 @@
                 return null;
             }
         }
+
     </script>
 </body>
 </html>
